@@ -38,8 +38,9 @@ void do_clock() {
 void clock_rise(int cycles=1) {
     for (int i=0;i<cycles;++i) {
         do_clock();
-        if (!top->if_clock) do_clock();
+        do_clock();
     }
+    if (top->if_clock) do_clock();
 }
 
 void set_state(HI_STATE state) {
@@ -59,6 +60,7 @@ void do_write(int val) {
     clock_rise();
     top->ctl = 0;
     top->we = 0;
+    //clock_rise();
 }
 
 int do_read() {
@@ -68,9 +70,9 @@ int do_read() {
     top->ctl = 2;
     clock_rise();
     top->ctl = 0;
-    do {
-     clock_rise();
-    } while (!top->rdy);
+    //clock_rise();
+    //while (!top->rdy) clock_rise();
+    do { clock_rise(); } while (!top->rdy);
     return top->dataout;  
     
 }
@@ -113,10 +115,11 @@ int main(int argc, char* argv[]) {
  top->trace(tfp,99);
  tfp->open("trace.vcd");
 
- while ( main_time < 100 ) do_clock();
+ while ( main_time < 101 ) do_clock();
+ 
  
  do_di_set(0,1,10); // set the led to 10
- do_di_get(0,0);
+ do_di_get(0,0,2);
  do_di_get(0,2,10);
  
  

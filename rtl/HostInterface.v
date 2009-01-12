@@ -35,9 +35,7 @@ module HostInterface
     inout wire [15:0] data,
 
     // Device Interface
-    
     input wire resetb,
-    //output pcClk,    // use this clock to talk to this module
     
     output reg [15:0] diEpAddr,
     output reg [15:0] diRegAddr,
@@ -55,23 +53,24 @@ module HostInterface
 
 //reg outr;
 assign out=0;
-reg rdyr;
-assign rdy=rdyr;
+reg rdyr,rdyr_n;
+assign rdy=rdyr;//rdyr_n;
 
 reg [3:0] state_code;
 reg [3:0] state_code_old; // for detecting sc change
 reg [2:0] ctlreg;
 wire rdwr_b = ctlreg[1];
 reg [15:0] hiDataIn;
-reg [15:0] hiDataOut;
+reg [15:0] hiDataOut,hiDataOut_n;
 
 wire [15:0] datain;
 wire [15:0] dataout;
 
-assign dataout = hiDataOut;
+assign dataout = hiDataOut; //hiDataOut_n;
 
-reg we; // output enable
+reg we,we_n; // output enable
 
+// register inputs
 always @(posedge if_clock) begin
  state_code <= state;
  state_code_old <= state_code;
@@ -79,9 +78,17 @@ always @(posedge if_clock) begin
  ctlreg <= ctl;
 end
 
+// register outputs
+/* always @(negedge if_clock) begin
+ rdyr_n <= rdyr;
+ hiDataOut_n <= hiDataOut;
+ we_n <= we;
+ // add a negedge for out if we decide to use that one too.
+end */
+
 
 IOBuf iob[15:0] (
- .we(we),
+ .we(we),//.we(we_n),
  .data(data),
  .in(datain),
  .out(dataout)
@@ -174,74 +181,5 @@ always @(posedge if_clock or negedge resetb) begin
 
 end
     
-
     
-    
-    
-    
-/*
-   wire [30:0] 	    ok1;
-   wire [16:0] 	    ok2;
-   
-   wire [15:0] triggersIn;
-   assign diReset  = triggersIn[0];
-   assign diRead   = triggersIn[1];
-   assign diWrite  = triggersIn[2];
-
-   // Opal Kelly Instantiations to implement the registers (device interface)
-
-   okWireIn     ep00  // End Point Address
-      (.ok1(ok1), .ok2(ok2), .ep_addr(8'h00), .ep_dataout(diEpAddr));
-
-   okWireIn     ep01  // Register Address
-      (.ok1(ok1), .ok2(ok2), .ep_addr(8'h01), .ep_dataout(diRegAddr));
-
-   okWireIn     ep02  // Register Data In from PC 
-      (.ok1(ok1), .ok2(ok2), .ep_addr(8'h02), .ep_dataout(diRegDataIn));
-
-   okWireOut    ep20  // Register Data Out to PC
-      (.ok1(ok1), .ok2(ok2), .ep_addr(8'h20), .ep_datain(diRegDataOut));
-
-   okTriggerIn  ep40 // Triggers From PC
-      (.ok1(ok1), .ok2(ok2),
-       .ep_addr(8'h40), .ep_clk(pcClk), .ep_trigger(triggersIn));
-   
-   okPipeIn     ep80 
-      (.ok1(ok1), .ok2(ok2),
-       .ep_addr(8'h80),  .ep_write(pcWrite), .ep_dataout(pcWriteData) );
-
-   okPipeOut    epA0 
-      (.ok1(ok1), .ok2(ok2),
-      .ep_addr(8'hA0),  .ep_read(pcRead), .ep_datain(pcReadData) );
-   
-   okBTPipeOut    epA1 
-      (.ok1(ok1), .ok2(ok2),
-       .ep_addr(8'hA1),  .ep_read(pcReadBT), .ep_datain(pcReadDataBT),
-       .ep_blockstrobe(pcBlockStrobeBT), .ep_ready(pcReadyBT));
-   
-   // ------------------------------------------------------------------------
-   // | Endpoint Type | Address Range  | Sync/Async    | Data Type           |
-   // |---------------+----------------+---------------+---------------------|
-   // | Wire In       | 0x00 - 0x1F    | Asynchronous  | Signal state        |
-   // | Wire Out      | 0x20 - 0x3F    | Asynchronous  | Signal state        |
-   // | Trigger In    | 0x40 - 0x5F    | Synchronous   | One-shot            |
-   // | Trigger Out   | 0x60 - 0x7F    | Synchronous   | One-shot            |
-   // | Pipe In       | 0x80 - 0x9F    | Synchronous   | Multi-byte transfer |
-   // | Pipe Out      | 0xA0 - 0xBF    | Synchronous   | Multi-byte transfer |
-   //-------------------------------------------------------------------------
-
-   
-   // Instantiate the okHostInterface and connect endpoints to
-   // the target interface.
-   okHostInterface 
-      u0_okHI
-	 (
-	  .hi_in(hi_in),
-	  .hi_out(hi_out),
-	  .hi_inout(hi_inout),
-	  .ti_clk(pcClk),
-	  .ok1(ok1),
-	  .ok2(ok2)
-	  );
-*/   
 endmodule

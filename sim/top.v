@@ -17,7 +17,7 @@ module Wrapper(
   assign dataout = dataio;
 
   DiSim sim(
-    .if_clock(if_clock),
+    .if_clock(!if_clock),
     .ctl(ctl),
     .state(state),
     .rdy(rdy),
