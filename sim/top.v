@@ -1,6 +1,31 @@
 
 `include "XEM3010EndPointDefs.v"
 
+module Wrapper(
+    
+    input wire if_clock,
+    input wire [2:0] ctl,
+    input wire [3:0] state,
+    output wire rdy,
+    output wire out,
+    input wire we,
+    input wire [15:0] datain,
+    output wire [15:0] dataout
+);
+
+  wire [15:0] dataio = we ? datain : 16'hZ;
+  assign dataout = dataio;
+
+  DiSim sim(
+    .if_clock(if_clock),
+    .ctl(ctl),
+    .state(state),
+    .rdy(rdy),
+    .out(out),
+    .data(dataio)
+  );
+
+endmodule
 
 module DiSim (
     input wire if_clock,
@@ -29,6 +54,7 @@ module DiSim (
         .ctl(ctl),
         .rdy(rdy),
         .out(out),
+        .state(state),
         .data(data),
         .resetb(resetb),
         .diEpAddr(diEpAddr),

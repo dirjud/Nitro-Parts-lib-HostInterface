@@ -31,7 +31,7 @@ module HostInterface
     input wire [2:0] ctl,
     input wire [3:0] state,
     output wire rdy,
-    output wire out,
+    output wire out, // unused?
     inout wire [15:0] data,
 
     // Device Interface
@@ -47,29 +47,21 @@ module HostInterface
     output  reg   diRead,
     output  reg   diReset,
     input wire rdwr_ready
-    
- /*   output wire pcRead, // Read enable.  1 cycle of CAS latency
-    input wire pcReadReady,
-    input wire [15:0] pcReadData,// should contain valid data one cycle after pcRead.
-
-    output wire pcWrite,
-    input wire pcWriteReady,
-    output wire [15:0] pcWriteData
-    */
+ 
     );
-    
-
 
     
 // host stuff
 
-reg outr;
-assign out=outr;
+//reg outr;
+assign out=0;
 reg rdyr;
 assign rdy=rdyr;
 
 reg [3:0] state_code;
-reg rdwr_b;
+reg [3:0] state_code_old; // for detecting sc change
+reg [2:0] ctlreg;
+wire rdwr_b = ctlreg[1];
 reg [15:0] hiDataIn;
 reg [15:0] hiDataOut;
 
@@ -82,8 +74,9 @@ reg we; // output enable
 
 always @(posedge if_clock) begin
  state_code <= state;
+ state_code_old <= state_code;
  hiDataIn <= datain;
- rdwr_b <= ctl[1];
+ ctlreg <= ctl;
 end
 
 
@@ -101,15 +94,11 @@ IOBuf iob[15:0] (
 // op codes
 parameter SETEP =       4'b0001;
 parameter SETREG =      4'b0010;
-parameter SETRVAL =     4'b0011;
+parameter SETRVAL =     4'b0011; // should just use wrdata
 parameter RDDATA =      4'b0100;
 parameter RESETRVAL =   4'b0101;
 parameter WRDATA =      4'b0111;
 
-// states
-//parameter IDLE
-//parameter RDSINGLE
-//parameter WRSINGLE
 
 reg [1:0] state_flgs; // for use within each state
     
@@ -121,49 +110,66 @@ always @(posedge if_clock or negedge resetb) begin
     diRegDataIn <= 0;
     //hiDataOut <= 0;
  end else begin
- 
- case (state_code)
-    default:
-        begin
-          state_flgs <= 0;
-          diWrite <= 0;
-          diReset <= 0;
-          diRead <= 0;
-          we <= 0;
-          rdyr <= 0;
-        end
-    SETEP:
-        if (!state_flgs[0]) begin
-             if(rdwr_b) begin
-                diEpAddr <= hiDataIn;
-                state_flgs[0] <= 1;
-             end
-        end
-    SETREG:
-        if (!state_flgs[0]) begin
-            if(rdwr_b) begin
-                diRegAddr <= hiDataIn;
-                state_flgs[0]<= 1;
-            end
-        end
-    SETRVAL:
-        if (!state_flgs[0]) begin
-            if(rdwr_b) begin
-                state_flgs[0] <= 1;
-                diRegDataIn <= hiDataIn ;
-                diWrite <= 1; // trigger one cycle write
-            end
-        end else begin
-            diWrite <= 0;
-        end
-    RDDATA:
-        begin
-           diRead <= rdwr_b;
-           we <= 1;
-           rdyr <= rdwr_ready;
-           hiDataOut <= diRegDataOut; // bogus data on 1st clock cycle
-        end
-   endcase
+
+ // you following block causes the host interface
+ // to require at least one clock cycle between
+ // changing states and setting rdwr_b.
+ // shouldn't be a problem since states are set on the firmware
+ // side before enabling the gpif
+ if (state_code_old != state_code) begin
+  state_flgs <= 0;
+  diWrite <= 0;
+  diRead <= 0;
+  diReset <= 0;
+  we <= 0;
+  rdyr <= 0;
+ end else begin
+    case (state_code)
+        default:
+         begin end
+       SETEP:
+           if (!state_flgs[0]) begin
+                if(rdwr_b) begin
+                   diEpAddr <= hiDataIn;
+                   state_flgs[0] <= 1;
+                end
+           end
+       SETREG:
+           if (!state_flgs[0]) begin
+               if(rdwr_b) begin
+                   diRegAddr <= hiDataIn;
+                   state_flgs[0]<= 1;
+               end
+           end
+       SETRVAL:
+           if (!state_flgs[0]) begin
+               if(rdwr_b) begin
+                   state_flgs[0] <= 1;
+                   diRegDataIn <= hiDataIn ;
+                   diWrite <= 1; // trigger one cycle write
+               end
+           end else begin
+               diWrite <= 0;
+           end
+       RDDATA:
+           if (!state_flgs[0]) begin
+              diRead <= rdwr_b;
+              we <= 0;
+              rdyr <= 0;
+              if (diRead) begin
+               state_flgs[0] <= 1;
+              end
+           end else begin
+                diRead <= 0;
+                if (rdwr_ready) begin
+                we <= 1;
+                rdyr <= 1;
+                hiDataOut <= diRegDataOut;
+                state_flgs[0] <= 0;
+               end
+           end
+      endcase
+   end
  end
 
 end
