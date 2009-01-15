@@ -31,7 +31,7 @@ module HostInterface
     input wire [2:0] ctl,
     input wire [3:0] state,
     output wire rdy,
-    output wire out, // unused?
+//    output wire out, // unused?
     inout wire [15:0] data,
 
     // Device Interface
@@ -51,8 +51,7 @@ module HostInterface
     
 // host stuff
 
-//reg outr;
-assign out=0;
+
 reg rdyr,rdyr_n;
 assign rdy=rdyr;//rdyr_n;
 
