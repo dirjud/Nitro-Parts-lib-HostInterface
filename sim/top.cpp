@@ -67,7 +67,7 @@ void do_read(int count=1,int buf[]=NULL) {
     
     // rdwr for one cycle
     int read=0,rdy=0,attempt=0;
-    bool read_state[3]={false,false,false};    
+    bool read_state[2]={false,false};    
     while ( read < count && attempt++<100) {
         clock_rise();
         //printf ( "%s ready\n", top->rdy ? "" : "Not");
@@ -78,8 +78,7 @@ void do_read(int count=1,int buf[]=NULL) {
         }        
         top->ctl = rdy < count && top->rdy ? 2 : 0;
         read_state[0] = read_state[1];
-        read_state[1] = read_state[2];
-        read_state[2] = top->ctl == 2;
+        read_state[1] = top->ctl == 2;
         if (top->ctl == 2) ++rdy;
     }
     

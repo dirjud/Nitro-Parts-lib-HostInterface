@@ -65,7 +65,7 @@ reg [15:0] hiDataOut,hiDataOut_n;
 wire [15:0] datain;
 wire [15:0] dataout;
 
-assign dataout = hiDataOut; //, hiDataOut_n;
+assign dataout = diRegDataOut;
 
 reg we,we_n; // output enable
 
@@ -165,8 +165,7 @@ always @(posedge if_clock or negedge resetb) begin
             begin
                 //diRead <= rdwr_b;
                 diRead <= ctl[1];
-                we <= 1;
-                hiDataOut <= diRegDataOut;
+                we <= 1;                
                 rdyr <= rdwr_ready;
             end
       endcase
