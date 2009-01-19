@@ -63,17 +63,25 @@ void do_write(int val) {
     //clock_rise();
 }
 
-int do_read() {
+void do_read(int count=1,int buf[]=NULL) {
     
     // rdwr for one cycle
-    clock_rise();
-    top->ctl = 2;
-    clock_rise();
-    top->ctl = 0;
-    //clock_rise();
-    //while (!top->rdy) clock_rise();
-    do { clock_rise(); } while (!top->rdy);
-    return top->dataout;  
+    int read=0,rdy=0,attempt=0;
+    bool read_state[3]={false,false,false};    
+    while ( read < count && attempt++<100) {
+        clock_rise();
+        //printf ( "%s ready\n", top->rdy ? "" : "Not");
+        if (read_state[0]) {
+         if (buf) buf[read] = top->dataout;
+         printf ( "Read %d\n", buf[read] );
+         ++read;
+        }        
+        top->ctl = rdy < count && top->rdy ? 2 : 0;
+        read_state[0] = read_state[1];
+        read_state[1] = read_state[2];
+        read_state[2] = top->ctl == 2;
+        if (top->ctl == 2) ++rdy;
+    }
     
 }
 
@@ -87,7 +95,7 @@ void do_di_set(int ep,int reg,int val) {
    
 }
 
-int do_di_get(int ep, int reg, int count=1) {
+void do_di_get(int ep, int reg, int count=1,int buf[]=NULL) {
     
     set_state(SETEP);
     // set read high for one cycle
@@ -95,12 +103,11 @@ int do_di_get(int ep, int reg, int count=1) {
     set_state(SETREG);
     do_write(reg);
     set_state(RDDATA);
-    int x;
-    for (int i=0;i<count;++i) {
-        x=do_read();
-        printf ( "Ep: %d, Reg: %d, val %d\n" , ep,reg,x);
+    do_read(count,buf);
+    if (buf) {
+        for (int i=0;i<count;++i)
+           printf ( "ep: %d, reg: %d, val: %d\n", ep,reg,buf[i] );
     }
-    return x;
 }
 
 
@@ -117,10 +124,12 @@ int main(int argc, char* argv[]) {
 
  while ( main_time < 101 ) do_clock();
  
- 
+ int buf[10];
  do_di_set(0,1,10); // set the led to 10
- do_di_get(0,0,2);
- do_di_get(0,2,10);
+ do_di_get(0,0,1,buf);
+ do_di_get(0,1,1,buf);
+ do_di_get(0,2,10,buf);
+ //do_di_get(0,2,10,buf);
  
  
  clock_rise(10);

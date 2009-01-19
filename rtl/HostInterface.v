@@ -53,7 +53,7 @@ module HostInterface
 
 
 reg rdyr,rdyr_n;
-assign rdy=rdyr;//rdyr_n;
+assign rdy=rdwr_ready; //rdyr;//rdyr_n;
 
 reg [3:0] state_code;
 reg [3:0] state_code_old; // for detecting sc change
@@ -65,7 +65,7 @@ reg [15:0] hiDataOut,hiDataOut_n;
 wire [15:0] datain;
 wire [15:0] dataout;
 
-assign dataout = hiDataOut; //hiDataOut_n;
+assign dataout = hiDataOut; //, hiDataOut_n;
 
 reg we,we_n; // output enable
 
@@ -134,46 +134,41 @@ always @(posedge if_clock or negedge resetb) begin
         default:
          begin end
        SETEP:
-           if (!state_flgs[0]) begin
+           //if (!state_flgs[0]) begin
                 if(rdwr_b) begin
                    diEpAddr <= hiDataIn;
-                   state_flgs[0] <= 1;
+           //        state_flgs[0] <= 1;
                 end
-           end
+           //end
        SETREG:
-           if (!state_flgs[0]) begin
+           //if (!state_flgs[0]) begin
                if(rdwr_b) begin
                    diRegAddr <= hiDataIn;
-                   state_flgs[0]<= 1;
+           //        state_flgs[0]<= 1;
                end
-           end
+           //end
        SETRVAL:
-           if (!state_flgs[0]) begin
-               if(rdwr_b) begin
-                   state_flgs[0] <= 1;
-                   diRegDataIn <= hiDataIn ;
-                   diWrite <= 1; // trigger one cycle write
-               end
-           end else begin
-               diWrite <= 0;
-           end
+            begin
+                diWrite <= ctl[1];
+                diRegDataIn <= datain;
+            end
+           //if (!state_flgs[0]) begin
+           //    if(rdwr_b) begin
+           //        state_flgs[0] <= 1;
+           //        diRegDataIn <= hiDataIn ;
+           //        diWrite <= 1; // trigger one cycle write
+           //    end
+           //end else begin
+           //    diWrite <= 0;
+           //end
        RDDATA:
-           if (!state_flgs[0]) begin
-              diRead <= rdwr_b;
-              we <= 0;
-              rdyr <= 0;
-              if (diRead) begin
-               state_flgs[0] <= 1;
-              end
-           end else begin
-                diRead <= 0;
-                if (rdwr_ready) begin
+            begin
+                //diRead <= rdwr_b;
+                diRead <= ctl[1];
                 we <= 1;
-                rdyr <= 1;
                 hiDataOut <= diRegDataOut;
-                state_flgs[0] <= 0;
-               end
-           end
+                rdyr <= rdwr_ready;
+            end
       endcase
    end
  end
