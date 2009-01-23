@@ -22,11 +22,17 @@ di=DevIf(name='Devices',
                  comment='When led0 is selected, this drives the leds',
           init=85,
         ),
-        Register(name='counter',
+        Register(name='counter_fifo',
+                 type='int',
+                 mode='volatile',
+                 access='ro',
+                 width=16,
+                 comment="A counter"),
+        Register(name='counter_get',
                  type='int',
                  mode='volatile',
                  access='ro',
                  width=16,
                  comment="A counter")
-    ])])
+        ])])
 

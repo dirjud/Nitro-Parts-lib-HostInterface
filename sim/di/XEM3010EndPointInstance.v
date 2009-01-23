@@ -1,6 +1,7 @@
   wire [1:0] buttons;
   wire [7:0] led0;
-  wire [15:0] counter;
+  wire [15:0] counter_fifo;
+  wire [15:0] counter_get;
   wire XEM3010EndPoint_write = diWrite && (diEpAddr == 0);
   wire [15:0] XEM3010EndPoint_out;
   XEM3010EndPoint XEM3010EndPoint(
@@ -13,6 +14,7 @@
 
      .buttons(buttons),
      .led0(led0),
-     .counter(counter)
+     .counter_fifo(counter_fifo),
+     .counter_get(counter_get)
      );
 

@@ -78,11 +78,11 @@ module DiSim (
     // for test purposes, lets say the counter only
     // is ready after a wait
     reg [2:0] counter_wait;
+    reg counter_get_read;
     parameter STATE_IDLE = 2'b0;
     parameter STATE_WAIT = 2'b01;
     parameter STATE_READ = 2'b10;
     reg [1:0] counter_state;
-    wire [2:0] counter_wait_ = counter_wait + 1;
     wire rdwr_ready_n = (counter_state == STATE_WAIT && counter_wait >= 3'd5) ||
                          (counter_state == STATE_READ && counter_wait < 3'd6);
                          
@@ -92,33 +92,72 @@ module DiSim (
          rdwr_ready <= 0;
          counter_wait <= 0;
          counter_state <= STATE_WAIT;
+         counter_get_read <= 0;
         end else begin
-            // if reading the counter, increment it
-            if (diEpAddr == `EP_XEM3010 && diRegAddr == `REG_XEM3010_counter_0) begin
+            // this block demonstrates how to use DI with read data
+            // rdwr_ready must predict a read in two cycles.
+            // when diRead is high, you must clock out the value for that read
+            // one cycle later
+            if (diEpAddr == `EP_XEM3010 && diRegAddr == `REG_XEM3010_counter_fifo_0) begin
                 rdwr_ready <= rdwr_ready_n;
+                counter_out <= counter_reg;
                 if (diRead) begin
-                    counter_out <= counter_reg;
                     counter_reg <= counter_reg+1;
                 end
                 case (counter_state)
                     default: begin end // I screwed up
                     STATE_WAIT:
-                        if (&counter_wait) begin
-                            counter_state <= STATE_READ;
-                            counter_wait <= 0;
-                        end else begin
+                        begin
                             counter_wait <= counter_wait + 1;
-                        end
+                            if (&counter_wait) begin
+                                counter_state <= STATE_READ;
+                            end
+                        end 
                     STATE_READ:
                         if (diRead) begin
                             counter_wait <= counter_wait + 1;
                             if (&counter_wait) begin
-                                counter_wait <= 0;
                                 counter_state <= STATE_WAIT;
                             end
                         end
                 endcase
             
+            end else if (diEpAddr == `EP_XEM3010 && diRegAddr == `REG_XEM3010_counter_get_0) begin
+                // in this case, you'll get a oneshot read.
+                // when you clock out the data, also clock out rdwr_ready = 1
+                // you can tie it high if you simply want to clock out the
+                // value each time a read is issued.
+                counter_out <= counter_reg;
+                if (diRead || counter_get_read) begin
+                    if (counter_state == STATE_READ) begin // read this cycle
+                        counter_get_read <= 0;
+                    end else if (diRead) begin
+                        counter_get_read <= 1; // read at a later cycle
+                    end
+                    case (counter_state)
+                        default: begin end
+                        STATE_WAIT:
+                            begin
+                                counter_wait <= counter_wait + 1;
+                                rdwr_ready <= 0;
+                                if (&counter_wait) begin
+                                    counter_state <= STATE_READ;
+                                end
+                            end
+                        STATE_READ:
+                            begin
+                                rdwr_ready <= 1;
+                                counter_reg <= counter_reg + 1;
+                                counter_wait <= counter_wait + 1;
+                                if (&counter_wait) begin
+                                    counter_state <= STATE_WAIT;
+                                end
+                            end
+                    endcase
+                end else begin
+                    rdwr_ready <= 0;
+                end
+                
             end else begin
                 rdwr_ready <= 1; // always ready for other registers
             end
@@ -130,7 +169,8 @@ module DiSim (
     wire clk=if_clock;
     `include "XEM3010EndPointInstance.v"
     assign buttons = 2'b01;
-    assign counter = counter_out;
+    assign counter_fifo = counter_out;
+    assign counter_get = counter_out;
         
     assign diRegDataOut = diEpAddr == `EP_XEM3010 ? XEM3010EndPoint_out : 0;
         

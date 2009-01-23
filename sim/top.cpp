@@ -73,7 +73,7 @@ void do_read(int count=1,int buf[]=NULL) {
         //printf ( "%s ready\n", top->rdy ? "" : "Not");
         if (read_state[0]) {
          if (buf) buf[read] = top->dataout;
-         printf ( "Read %d\n", buf[read] );
+         //printf ( "Read %d\n", buf[read] );
          ++read;
         }        
         top->ctl = rdy < count && top->rdy ? 2 : 0;
@@ -81,6 +81,15 @@ void do_read(int count=1,int buf[]=NULL) {
         read_state[1] = top->ctl == 2;
         if (top->ctl == 2) ++rdy;
     }
+    
+}
+
+int do_get() {
+    top->ctl=2; // read
+    clock_rise();
+    top->ctl=0;
+    do { clock_rise(); } while ( !top->rdy );
+    return top->dataout;
     
 }
 
@@ -94,7 +103,17 @@ void do_di_set(int ep,int reg,int val) {
    
 }
 
-void do_di_get(int ep, int reg, int count=1,int buf[]=NULL) {
+
+int do_di_get(int ep,int reg ) {
+    set_state(SETEP);
+    do_write(ep);
+    set_state(SETREG);
+    do_write(reg);
+    set_state(RDDATA);
+    return do_get();
+}
+
+void do_di_read(int ep, int reg, int count=1,int buf[]=NULL) {
     
     set_state(SETEP);
     // set read high for one cycle
@@ -125,13 +144,19 @@ int main(int argc, char* argv[]) {
  
  int buf[10];
  do_di_set(0,1,10); // set the led to 10
- do_di_get(0,0,1,buf);
- do_di_get(0,1,1,buf);
- do_di_get(0,2,10,buf);
- //do_di_get(0,2,10,buf);
+ printf ( "led value: %d\n" , do_di_get(0,1) );
+ printf ( "button 1 val: %d\n" , do_di_get(0,0) );
+  
+ printf ( "Get Counter: %d\n", do_di_get(0,3));
+ // counter
+ do_di_read(0,2,10,buf);
  
+ for (int i=0;i<6;++i)
+    printf ( "Get Counter: %d\n", do_di_get(0,3));
+    
+ do_di_read(0,2,8,buf);
  
- clock_rise(10);
+ clock_rise(50);
 
  tfp->close();
  top->final();

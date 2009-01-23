@@ -8,7 +8,8 @@ module XEM3010EndPoint(
 
   input      [1:0] buttons,
   output reg [7:0] led0,
-  input      [15:0] counter,
+  input      [15:0] counter_fifo,
+  input      [15:0] counter_get,
 
   output reg[15:0] datao
 );
@@ -25,11 +26,12 @@ always @(posedge clk or negedge resetb) begin
 end
 
 // Create readable registers
-always @(addr or buttons or led0 or counter) begin
+always @(addr or buttons or led0 or counter_fifo or counter_get) begin
   case(addr)
     0: datao = { 14'b0, buttons[1:0] };
     1: datao = { 8'b0, led0[7:0] };
-    2: datao = counter[15:0];
+    2: datao = counter_fifo[15:0];
+    3: datao = counter_get[15:0];
     default: datao = 0;
   endcase
 end

@@ -100,10 +100,10 @@ IOBuf iob[15:0] (
 // op codes
 parameter SETEP =       4'b0001;
 parameter SETREG =      4'b0010;
-parameter SETRVAL =     4'b0011; // should just use wrdata
+parameter SETRVAL =     4'b0011;
 parameter RDDATA =      4'b0100;
 parameter RESETRVAL =   4'b0101;
-parameter WRDATA =      4'b0111;
+//parameter WRDATA =      4'b1000;
 
 
 reg [1:0] state_flgs; // for use within each state
@@ -147,6 +147,7 @@ always @(posedge if_clock or negedge resetb) begin
            //        state_flgs[0]<= 1;
                end
            //end
+       
        SETRVAL:
             begin
                 diWrite <= ctl[1];
