@@ -50,17 +50,15 @@ module HostInterface
 
     
 // host stuff
-
-
-reg rdyr,rdyr_n;
-assign rdy=rdwr_ready; //rdyr;//rdyr_n;
+reg hi_drive_rdy, hi_rdy;
+assign rdy=hi_drive_rdy?hi_rdy:rdwr_ready;
 
 reg [3:0] state_code;
 reg [3:0] state_code_old; // for detecting sc change
 reg [2:0] ctlreg;
 wire rdwr_b = ctlreg[1];
 reg [15:0] hiDataIn;
-reg [15:0] hiDataOut,hiDataOut_n;
+reg [15:0] hiDataOut;
 
 wire [15:0] datain;
 wire [15:0] dataout;
@@ -77,13 +75,6 @@ always @(posedge if_clock) begin
  ctlreg <= ctl;
 end
 
-// register outputs
-/* always @(negedge if_clock) begin
- rdyr_n <= rdyr;
- hiDataOut_n <= hiDataOut;
- we_n <= we;
- // add a negedge for out if we decide to use that one too.
-end */
 
 
 IOBuf iob[15:0] (
@@ -128,46 +119,37 @@ always @(posedge if_clock or negedge resetb) begin
   diRead <= 0;
   diReset <= 0;
   we <= 0;
-  rdyr <= 0;
+  hi_drive_rdy <= 0;
+  hi_rdy <= 0;
  end else begin
     case (state_code)
         default:
          begin end
        SETEP:
-           //if (!state_flgs[0]) begin
-                if(rdwr_b) begin
-                   diEpAddr <= hiDataIn;
-           //        state_flgs[0] <= 1;
-                end
-           //end
+            begin
+             hi_drive_rdy <= 1;
+             hi_rdy <= 1;
+             if(rdwr_b) begin
+                diEpAddr <= hiDataIn;
+             end
+            end
        SETREG:
-           //if (!state_flgs[0]) begin
-               if(rdwr_b) begin
-                   diRegAddr <= hiDataIn;
-           //        state_flgs[0]<= 1;
-               end
-           //end
-       
+        begin
+            hi_drive_rdy <= 1;
+            hi_rdy <= 1;
+            if(rdwr_b) begin
+                diRegAddr <= hiDataIn;
+            end
+        end
        SETRVAL:
             begin
                 diWrite <= ctl[1];
                 diRegDataIn <= datain;
             end
-           //if (!state_flgs[0]) begin
-           //    if(rdwr_b) begin
-           //        state_flgs[0] <= 1;
-           //        diRegDataIn <= hiDataIn ;
-           //        diWrite <= 1; // trigger one cycle write
-           //    end
-           //end else begin
-           //    diWrite <= 0;
-           //end
        RDDATA:
             begin
-                //diRead <= rdwr_b;
                 diRead <= ctl[1];
                 we <= 1;                
-                rdyr <= rdwr_ready;
             end
       endcase
    end

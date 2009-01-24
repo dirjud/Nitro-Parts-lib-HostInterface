@@ -53,7 +53,7 @@ void set_state(HI_STATE state) {
  **/
 void do_write(int val) {
     // rdwr for one cycle
-    clock_rise();
+    do { clock_rise(); } while ( !top->rdy );
     top->ctl = 2; // 010
     top->we = 1;
     top->datain = val;
@@ -146,15 +146,17 @@ int main(int argc, char* argv[]) {
  do_di_set(0,1,10); // set the led to 10
  printf ( "led value: %d\n" , do_di_get(0,1) );
  printf ( "button 1 val: %d\n" , do_di_get(0,0) );
+ do_di_set(0,2,0xab); // write to the slow writer guy
+ printf ( "Set the slow writer\n" );
   
- printf ( "Get Counter: %d\n", do_di_get(0,3));
+ printf ( "Get Counter: %d\n", do_di_get(0,4));
  // counter
- do_di_read(0,2,10,buf);
+ do_di_read(0,3,10,buf);
  
  for (int i=0;i<6;++i)
-    printf ( "Get Counter: %d\n", do_di_get(0,3));
+    printf ( "Get Counter: %d\n", do_di_get(0,4));
     
- do_di_read(0,2,8,buf);
+ do_di_read(0,3,8,buf);
  
  clock_rise(50);
 

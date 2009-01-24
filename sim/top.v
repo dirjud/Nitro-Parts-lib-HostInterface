@@ -72,6 +72,7 @@ module DiSim (
     assign resetb = &resetcount;
     assign out = 0;
     
+    reg [4:0] slow_writer_timeout;
     
     reg [15:0] counter_out,counter_reg;// counter_reg_n;
     reg diReadReg;
@@ -93,6 +94,7 @@ module DiSim (
          counter_wait <= 0;
          counter_state <= STATE_WAIT;
          counter_get_read <= 0;
+         slow_writer_timeout <= 0;
         end else begin
             // this block demonstrates how to use DI with read data
             // rdwr_ready must predict a read in two cycles.
@@ -158,6 +160,14 @@ module DiSim (
                     rdwr_ready <= 0;
                 end
                 
+            end else if (diEpAddr == `EP_XEM3010 && diRegAddr == `REG_XEM3010_slow_writer_0) begin
+                // this guy you can't read/write to for a while
+                if (&slow_writer_timeout) begin
+                    rdwr_ready <= 1;
+                end else begin
+                    slow_writer_timeout <= slow_writer_timeout + 1;
+                    rdwr_ready <= 0;
+                end
             end else begin
                 rdwr_ready <= 1; // always ready for other registers
             end
