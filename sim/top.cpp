@@ -146,8 +146,10 @@ int main(int argc, char* argv[]) {
  do_di_set(0,1,10); // set the led to 10
  printf ( "led value: %d\n" , do_di_get(0,1) );
  printf ( "button 1 val: %d\n" , do_di_get(0,0) );
- do_di_set(0,2,0xab); // write to the slow writer guy
- printf ( "Set the slow writer\n" );
+ for (int i=0;i<2;++i) {
+    do_di_set(0,2,0xab);  // write to the slow writer guy
+    printf ( "Set the slow writer\n" );
+ }
   
  printf ( "Get Counter: %d\n", do_di_get(0,4));
  // counter
@@ -157,6 +159,9 @@ int main(int argc, char* argv[]) {
     printf ( "Get Counter: %d\n", do_di_get(0,4));
     
  do_di_read(0,3,8,buf);
+ 
+ for (int i=0;i<3;++i)
+    printf ( "Get slow writer: %d\n", do_di_get(0,2));
  
  clock_rise(50);
 

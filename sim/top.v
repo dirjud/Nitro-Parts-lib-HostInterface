@@ -47,7 +47,7 @@ module DiSim (
     wire diWrite;
     wire diRead;
     wire diReset;
-    reg rdwr_ready;
+    reg rd_ready,wr_ready;
     
     HostInterface hi(
         .if_clock(if_clock),
@@ -64,7 +64,8 @@ module DiSim (
         .diWrite(diWrite),
         .diRead(diRead),
         .diReset(diReset),
-        .rdwr_ready(rdwr_ready)
+        .wr_ready(wr_ready),
+        .rd_ready(rd_ready)
     );
     
     
@@ -84,13 +85,14 @@ module DiSim (
     parameter STATE_WAIT = 2'b01;
     parameter STATE_READ = 2'b10;
     reg [1:0] counter_state;
-    wire rdwr_ready_n = (counter_state == STATE_WAIT && counter_wait >= 3'd5) ||
+    wire rd_ready_n = (counter_state == STATE_WAIT && counter_wait >= 3'd5) ||
                          (counter_state == STATE_READ && counter_wait < 3'd6);
                          
     always @(posedge if_clock) begin    
         if (!resetb) begin
          resetcount <= resetcount + 1;
-         rdwr_ready <= 0;
+         wr_ready <= 0;
+         rd_ready <= 0;
          counter_wait <= 0;
          counter_state <= STATE_WAIT;
          counter_get_read <= 0;
@@ -101,7 +103,7 @@ module DiSim (
             // when diRead is high, you must clock out the value for that read
             // one cycle later
             if (diEpAddr == `EP_XEM3010 && diRegAddr == `REG_XEM3010_counter_fifo_0) begin
-                rdwr_ready <= rdwr_ready_n;
+                rd_ready <= rd_ready_n;
                 counter_out <= counter_reg;
                 if (diRead) begin
                     counter_reg <= counter_reg+1;
@@ -141,14 +143,14 @@ module DiSim (
                         STATE_WAIT:
                             begin
                                 counter_wait <= counter_wait + 1;
-                                rdwr_ready <= 0;
+                                rd_ready <= 0;
                                 if (&counter_wait) begin
                                     counter_state <= STATE_READ;
                                 end
                             end
                         STATE_READ:
                             begin
-                                rdwr_ready <= 1;
+                                rd_ready <= 1;
                                 counter_reg <= counter_reg + 1;
                                 counter_wait <= counter_wait + 1;
                                 if (&counter_wait) begin
@@ -157,19 +159,29 @@ module DiSim (
                             end
                     endcase
                 end else begin
-                    rdwr_ready <= 0;
+                    rd_ready <= 0;
                 end
                 
             end else if (diEpAddr == `EP_XEM3010 && diRegAddr == `REG_XEM3010_slow_writer_0) begin
                 // this guy you can't read/write to for a while
                 if (&slow_writer_timeout) begin
-                    rdwr_ready <= 1;
+                    if (diRead || diWrite) begin
+                        slow_writer_timeout <= 0; // have to wait again
+                        wr_ready <= 0;
+                        rd_ready <= 0;
+                    end else begin
+                        wr_ready <= 1;
+                        rd_ready <= 1;
+                    end
+                    
                 end else begin
                     slow_writer_timeout <= slow_writer_timeout + 1;
-                    rdwr_ready <= 0;
+                    wr_ready <= 0;
+                    rd_ready <= 0;
                 end
             end else begin
-                rdwr_ready <= 1; // always ready for other registers
+                rd_ready <= 1; // always ready for other registers
+                wr_ready <= 1;
             end
         end
     end

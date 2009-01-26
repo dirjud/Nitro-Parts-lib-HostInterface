@@ -44,16 +44,18 @@ module HostInterface
     output  reg   diWrite,
     output  reg   diRead,
     output  reg   diReset,
-    input wire rdwr_ready
- 
+    input wire rd_ready,
+    input wire wr_ready
     );
 
     
 // host stuff
-reg hi_drive_rdy, hi_rdy;
-assign rdy=hi_drive_rdy?hi_rdy:rdwr_ready;
-
 reg [3:0] state_code;
+reg hi_drive_rdy, hi_rdy;
+assign rdy=hi_drive_rdy?hi_rdy:
+       state_code == SETRVAL ? wr_ready:
+       rd_ready;
+
 reg [3:0] state_code_old; // for detecting sc change
 reg [2:0] ctlreg;
 wire rdwr_b = ctlreg[1];
