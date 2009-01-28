@@ -48,6 +48,15 @@ module HostInterface
     input wire wr_ready
     );
 
+//parameter IDLE =        4'b0000;
+// op codes
+parameter SETEP =       4'b0001;
+parameter SETREG =      4'b0010;
+parameter SETRVAL =     4'b0011;
+parameter RDDATA =      4'b0100;
+parameter RESETRVAL =   4'b0101;
+//parameter WRDATA =      4'b1000;
+
     
 // host stuff
 reg [3:0] state_code;
@@ -88,15 +97,6 @@ IOBuf iob[15:0] (
 //assign data = (we) ? hiDataOut: 16'hZ;
 
 // device stuff
-
-//parameter IDLE =        4'b0000;
-// op codes
-parameter SETEP =       4'b0001;
-parameter SETREG =      4'b0010;
-parameter SETRVAL =     4'b0011;
-parameter RDDATA =      4'b0100;
-parameter RESETRVAL =   4'b0101;
-//parameter WRDATA =      4'b1000;
 
 
 reg [1:0] state_flgs; // for use within each state
