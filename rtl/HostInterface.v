@@ -55,7 +55,9 @@ parameter SETREG =      4'b0010;
 parameter SETRVAL =     4'b0011;
 parameter RDDATA =      4'b0100;
 parameter RESETRVAL =   4'b0101;
-//parameter WRDATA =      4'b1000;
+parameter GETRVAL =     4'b0110;
+parameter RDTC    =     4'b0111;
+parameter WRDATA =      4'b1000;
 
     
 // host stuff
@@ -70,6 +72,7 @@ reg [2:0] ctlreg;
 wire rdwr_b = ctlreg[1];
 reg [15:0] hiDataIn;
 reg [15:0] hiDataOut;
+reg [15:0] rd_tc;
 
 wire [15:0] datain;
 wire [15:0] dataout;
@@ -83,6 +86,7 @@ always @(posedge if_clock) begin
  state_code <= state;
  state_code_old <= state_code;
  hiDataIn <= datain;
+
  ctlreg <= ctl;
 end
 
@@ -108,6 +112,7 @@ always @(posedge if_clock or negedge resetb) begin
     diRegAddr <= 0;
     diRegDataIn <= 0;
     //hiDataOut <= 0;
+    rd_tc <= 0;
  end else begin
 
  // you following block causes the host interface
@@ -148,10 +153,30 @@ always @(posedge if_clock or negedge resetb) begin
                 diWrite <= ctl[1];
                 diRegDataIn <= datain;
             end
-       RDDATA:
+       GETRVAL:
             begin
                 diRead <= ctl[1];
-                we <= 1;                
+                we <= 1;
+            end
+       RDTC:
+            begin
+                hi_drive_rdy <= 1;
+                hi_rdy <= 1;
+                if ( rdwr_b ) begin
+                    rd_tc <= hiDataIn;
+                end
+            end
+       RDDATA:
+            begin
+                hi_drive_rdy <= 1;
+                hi_rdy <= diRead;
+               if (rdwr_b && rd_ready && rd_tc>0) begin
+                  diRead <= 1;
+                  rd_tc <= rd_tc - 1;
+                end else begin
+                  diRead <= 0;
+                end
+                we <= 1; 
             end
       endcase
    end

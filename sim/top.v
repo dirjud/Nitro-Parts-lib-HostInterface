@@ -85,8 +85,8 @@ module DiSim (
     parameter STATE_WAIT = 2'b01;
     parameter STATE_READ = 2'b10;
     reg [1:0] counter_state;
-    wire rd_ready_n = (counter_state == STATE_WAIT && counter_wait >= 3'd5) ||
-                         (counter_state == STATE_READ && counter_wait < 3'd6);
+    wire rd_ready_n = (counter_state == STATE_WAIT && counter_wait >= 3'd6) ||
+                         (counter_state == STATE_READ && counter_wait < 3'd7);
                          
     always @(posedge if_clock) begin    
         if (!resetb) begin
@@ -124,7 +124,13 @@ module DiSim (
                                 counter_state <= STATE_WAIT;
                             end
                         end
-                endcase
+                endcase 
+
+                /* rd_ready <= 1;
+                counter_out <= counter_reg;
+                if (diRead) begin
+                 counter_reg <= counter_reg + 1;
+                end */
             
             end else if (diEpAddr == `EP_XEM3010 && diRegAddr == `REG_XEM3010_counter_get_0) begin
                 // in this case, you'll get a oneshot read.

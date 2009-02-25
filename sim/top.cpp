@@ -12,7 +12,9 @@ typedef enum {
     SETRVAL=  3,
     RDDATA = 4,
     RESETRVAL = 5,
-    WRDATA = 6
+    GETRVAL = 6,
+    RDTC   = 7,
+    WRDATA = 8
 } HI_STATE;
 
 
@@ -65,22 +67,16 @@ void do_write(int val) {
 
 void do_read(int count=1,int buf[]=NULL) {
     
-    // rdwr for one cycle
-    int read=0,rdy=0,attempt=0;
-    bool read_state[2]={false,false};    
-    while ( read < count && attempt++<100) {
+
+    top->ctl = 2; // in read until done
+    int read = 0;
+    while ( read < count ) {
         clock_rise();
-        //printf ( "%s ready\n", top->rdy ? "" : "Not");
-        if (read_state[0]) {
-         if (buf) buf[read] = top->dataout;
-         //printf ( "Read %d\n", buf[read] );
-         ++read;
-        }        
-        top->ctl = rdy < count && top->rdy ? 2 : 0;
-        read_state[0] = read_state[1];
-        read_state[1] = top->ctl == 2;
-        if (top->ctl == 2) ++rdy;
+        if ( top->rdy ) {
+            buf[read++] = top->dataout;
+        }
     }
+
     
 }
 
@@ -109,7 +105,7 @@ int do_di_get(int ep,int reg ) {
     do_write(ep);
     set_state(SETREG);
     do_write(reg);
-    set_state(RDDATA);
+    set_state(GETRVAL);
     return do_get();
 }
 
@@ -120,12 +116,14 @@ void do_di_read(int ep, int reg, int count=1,int buf[]=NULL) {
     do_write(ep);
     set_state(SETREG);
     do_write(reg);
+    set_state(RDTC);
+    do_write(count);
     set_state(RDDATA);
     do_read(count,buf);
     if (buf) {
         for (int i=0;i<count;++i)
            printf ( "ep: %d, reg: %d, val: %d\n", ep,reg,buf[i] );
-    }
+    } 
 }
 
 
