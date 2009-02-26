@@ -62,7 +62,7 @@ parameter WRDATA =      4'b1000;
     
 // host stuff
 reg [3:0] state_code;
-reg hi_drive_rdy, hi_rdy;
+reg hi_drive_rdy, hi_rdy, hi_drive_data;
 assign rdy=hi_drive_rdy?hi_rdy:
        state_code == SETRVAL ? wr_ready:
        rd_ready;
@@ -77,9 +77,12 @@ reg [15:0] rd_tc;
 wire [15:0] datain;
 wire [15:0] dataout;
 
-assign dataout = diRegDataOut;
+assign dataout = hi_drive_data ? hiDataOut : diRegDataOut;
 
-reg we,we_n; // output enable
+reg we; // output enable
+
+
+reg diRead_s; // sample diRead for RDDATA
 
 // register inputs
 always @(posedge if_clock) begin
@@ -128,6 +131,7 @@ always @(posedge if_clock or negedge resetb) begin
   we <= 0;
   hi_drive_rdy <= 0;
   hi_rdy <= 0;
+  hi_drive_data <= 0;
  end else begin
     case (state_code)
         default:
@@ -161,6 +165,7 @@ always @(posedge if_clock or negedge resetb) begin
        RDTC:
             begin
                 hi_drive_rdy <= 1;
+                hi_drive_data <= 1;
                 hi_rdy <= 1;
                 if ( rdwr_b ) begin
                     rd_tc <= hiDataIn;
@@ -169,7 +174,10 @@ always @(posedge if_clock or negedge resetb) begin
        RDDATA:
             begin
                 hi_drive_rdy <= 1;
-                hi_rdy <= diRead;
+                hi_drive_data <= 1;
+                diRead_s <= diRead;
+                hi_rdy <= diRead_s; // drive data out on cycle after read
+                hiDataOut <= diRegDataOut;
                if (rdwr_b && rd_ready && rd_tc>0) begin
                   diRead <= 1;
                   rd_tc <= rd_tc - 1;
