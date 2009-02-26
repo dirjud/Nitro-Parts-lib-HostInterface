@@ -126,11 +126,11 @@ module DiSim (
                         end
                 endcase 
 
-//                rd_ready <= 1;
-//                counter_out <= counter_reg;
-//                if (diRead) begin
-//                 counter_reg <= counter_reg + 1;
-//                end 
+                /* rd_ready <= 1;
+                counter_out <= counter_reg;
+                if (diRead) begin
+                 counter_reg <= counter_reg + 1;
+                end */
             
             end else if (diEpAddr == `EP_XEM3010 && diRegAddr == `REG_XEM3010_counter_get_0) begin
                 // in this case, you'll get a oneshot read.
