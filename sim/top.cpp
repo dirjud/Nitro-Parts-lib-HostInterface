@@ -70,9 +70,11 @@ void do_read(int count=1,int buf[]=NULL) {
 
     top->ctl = 2; // in read until done
     int read = 0;
+    int rdy_s=0;
     while ( read < count ) {
+        rdy_s = top->rdy;
         clock_rise();
-        if ( top->rdy ) {
+        if ( rdy_s ) {
             buf[read++] = top->dataout;
         }
     }

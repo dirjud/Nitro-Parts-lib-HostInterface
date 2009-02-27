@@ -103,34 +103,34 @@ module DiSim (
             // when diRead is high, you must clock out the value for that read
             // one cycle later
             if (diEpAddr == `EP_XEM3010 && diRegAddr == `REG_XEM3010_counter_fifo_0) begin
-                rd_ready <= rd_ready_n;
-                counter_out <= counter_reg;
-                if (diRead) begin
-                    counter_reg <= counter_reg+1;
-                end
-                case (counter_state)
-                    default: begin end // I screwed up
-                    STATE_WAIT:
-                        begin
-                            counter_wait <= counter_wait + 1;
-                            if (&counter_wait) begin
-                                counter_state <= STATE_READ;
-                            end
-                        end 
-                    STATE_READ:
-                        if (diRead) begin
-                            counter_wait <= counter_wait + 1;
-                            if (&counter_wait) begin
-                                counter_state <= STATE_WAIT;
-                            end
-                        end
-                endcase 
-
-//                rd_ready <= 1;
+//                rd_ready <= rd_ready_n;
 //                counter_out <= counter_reg;
 //                if (diRead) begin
-//                 counter_reg <= counter_reg + 1;
-//                end 
+//                    counter_reg <= counter_reg+1;
+//                end
+//                case (counter_state)
+//                    default: begin end // I screwed up
+//                    STATE_WAIT:
+//                        begin
+//                            counter_wait <= counter_wait + 1;
+//                            if (&counter_wait) begin
+//                                counter_state <= STATE_READ;
+//                            end
+//                        end 
+//                    STATE_READ:
+//                        if (diRead) begin
+//                            counter_wait <= counter_wait + 1;
+//                            if (&counter_wait) begin
+//                                counter_state <= STATE_WAIT;
+//                            end
+//                        end
+//                endcase 
+
+                rd_ready <= 1;
+                counter_out <= counter_reg;
+                if (diRead) begin
+                 counter_reg <= counter_reg + 1;
+                end 
             
             end else if (diEpAddr == `EP_XEM3010 && diRegAddr == `REG_XEM3010_counter_get_0) begin
                 // in this case, you'll get a oneshot read.
