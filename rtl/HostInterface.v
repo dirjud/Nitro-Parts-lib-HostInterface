@@ -72,7 +72,6 @@ reg [2:0] ctlreg;
 wire rdwr_b = ctlreg[1];
 reg [15:0] hiDataIn;
 reg [15:0] hiDataOut;
-reg [15:0] diRegDataOut_s;
 reg [15:0] rd_tc;
 
 wire [15:0] datain;
@@ -81,9 +80,6 @@ wire [15:0] dataout;
 assign dataout = hi_drive_data ? hiDataOut : diRegDataOut;
 
 reg we; // output enable
-
-
-reg diRead_s; // sample diRead for RDDATA
 
 // register inputs
 always @(posedge if_clock) begin
@@ -166,7 +162,6 @@ always @(posedge if_clock or negedge resetb) begin
        RDTC:
             begin
                 hi_drive_rdy <= 1;
-                hi_drive_data <= 1;
                 hi_rdy <= 1;
                 if ( rdwr_b ) begin
                     rd_tc <= hiDataIn;
@@ -176,9 +171,7 @@ always @(posedge if_clock or negedge resetb) begin
             begin
                 hi_drive_rdy <= 1;
                 hi_drive_data <= 1;
-                diRead_s <= diRead;
                 hi_rdy <= diRead; // drive data out one cycle after ready
-                diRegDataOut_s <= diRegDataOut;
                 hiDataOut <= diRegDataOut;
                if (rdwr_b && rd_ready && rd_tc>0) begin
                   diRead <= 1;
