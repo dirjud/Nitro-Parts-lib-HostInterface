@@ -176,7 +176,7 @@ always @(posedge if_clock or negedge resetb) begin
                 hi_drive_rdy <= 1;
                 hi_drive_data <= 1;
                 diRead_s <= diRead;
-                hi_rdy <= diRead_s; // drive data out on cycle after read
+                hi_rdy <= diRead; // drive data out one cycle after read
                 hiDataOut <= diRegDataOut;
                if (rdwr_b && rd_ready && rd_tc>0) begin
                   diRead <= 1;
