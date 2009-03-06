@@ -73,9 +73,15 @@ wire rdwr_b = ctlreg[1];
 reg [15:0] hiDataIn;
 reg [15:0] hiDataOut;
 reg [15:0] rd_tc;
+reg [15:0] rd_rdy_cnt;
 
 wire [15:0] datain;
 wire [15:0] dataout;
+
+reg hi_read_save,hi_read_save_s;
+reg [15:0] hi_save_data;
+
+wire [1:0] gpif_debug = {ctl[2],ctl[0]};
 
 assign dataout = hi_drive_data ? hiDataOut : diRegDataOut;
 
@@ -129,6 +135,10 @@ always @(posedge if_clock or negedge resetb) begin
   hi_drive_rdy <= 0;
   hi_rdy <= 0;
   hi_drive_data <= 0;
+  rd_rdy_cnt <= 0;
+  hi_read_save <= 0;
+  hi_read_save_s <= 0;
+  hi_save_data <= 0;
  end else begin
     case (state_code)
         default:
@@ -171,9 +181,33 @@ always @(posedge if_clock or negedge resetb) begin
             begin
                 hi_drive_rdy <= 1;
                 hi_drive_data <= 1;
-                hi_rdy <= diRead; // drive data out one cycle after ready
+
+/*
+                if (!rdwr_b && diRead) begin
+                    hi_rdy <= 0;
+                    hi_read_save <= 1;
+                    hi_save_data <= diRegDataOut;
+                end else begin
+                    hi_rdy <= diRead;
+                end
+
+                if (hi_read_save && rdwr_b) begin
+                   hi_rdy <= 1; 
+                   hi_read_save <= 0;
+                   hi_read_save_s <= 1;
+                end
+
+                if (hi_read_save_s) begin
+                    hiDataOut <= hi_save_data;
+                    hi_read_save_s <= 0;
+                end else begin
+                    hiDataOut <= diRegDataOut;
+                end */
+
+                hi_rdy <= diRead;
                 hiDataOut <= diRegDataOut;
-               if (rdwr_b && rd_ready && rd_tc>0) begin
+
+               if (rdwr_b && rd_ready && rd_tc>0) begin //&& !hi_read_save) begin
                   diRead <= 1;
                   rd_tc <= rd_tc - 1;
                 end else begin
