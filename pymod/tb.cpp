@@ -24,8 +24,11 @@ SpTraceVcdCFile *tfp = NULL;
 unsigned int main_time = 0;	// Current simulation time
 bool trace = true;
 
+int cycle_timeout=1000;
+
 #define CHECK_INIT   if(tb == NULL) { PyErr_SetString(PyExc_Exception, "You have not initialized this sim yet.  Run init() function"); return NULL; }
 
+#define dprintf(...) printf(__VA_ARGS__)
 
 // 10 main time = 1 ns
 double sc_time_stamp () {	// Called by $time in Verilog
@@ -89,7 +92,10 @@ int single_write(int val) {
     int wait=0;
     do {
      iclock_cycle(); 
-     if (++wait > 1000) return -1;
+     if (++wait > cycle_timeout) {
+      dprintf ( "Waited %d cycles\n", wait );
+      return -1;
+     }
     } while ( !tb->rdy );
     tb->ctl = 2; // rdwr_b = 1
     tb->we = 1;
@@ -122,7 +128,10 @@ int single_read(int* val) {
      rdy_s = tb->rdy;
      dataout_s = tb->dataout;
      iclock_cycle();
-     if (++wait > 1000) return -1;
+     if (++wait > cycle_timeout) {
+      dprintf ( "Waited %d cycles\n", wait );
+      return -1;
+     }
     } while (!rdy_s); 
 
     *val = dataout_s;
@@ -130,7 +139,6 @@ int single_read(int* val) {
     return 0;
 }
 
-#define dprintf(...) printf(__VA_ARGS__)
 
 /**
  * waits until ready goes high.  
@@ -172,7 +180,7 @@ void fifo_read(int count=1,uint16_t *buf=NULL) {
                     state = 1;
                 } else {
                     ++wait;
-                    if (wait>20000) {
+                    if (wait>cycle_timeout) {
                         dprintf ( "Waited %d cycles.. Timeout\n", wait );
                         exit=true;
                     }
@@ -388,6 +396,26 @@ static PyObject *close(PyObject *self, PyObject *args) {
 }
 
 
+static PyObject *set_timeout(PyObject *self, PyObject *args) {
+
+  int timeout;
+    
+  CHECK_INIT
+  
+  if (!PyArg_ParseTuple(args, "i", &timeout) ) {
+    PyErr_SetString(PyExc_Exception, "Expected arguments: timeout: Integer");
+    return NULL;
+  }
+
+  if (timeout < 1) {
+    PyErr_SetString(PyExc_Exception, "timeout must be >= 1" );
+    return NULL;
+  }
+  cycle_timeout=timeout;
+
+  Py_RETURN_NONE;
+}
+
 
 /*************************************  Vtb extension module ****************/
 static PyMethodDef Vpcb_methods[] = {
@@ -399,6 +427,7 @@ static PyMethodDef Vpcb_methods[] = {
   {"time", time, METH_NOARGS, "Gets the current time of the simulation." },
   {"clk_rise", clk_rise, METH_NOARGS, "Advances sim to next rising clk edge"},
   {"clk_fall", clk_fall, METH_NOARGS, "Advances sim to next falling clk edge"},
+  {"set_timeout", set_timeout, METH_VARARGS, "Set the number of cycles before a read/write times out." },
   {"close",  close,  METH_NOARGS, "Ends simulation & deletes all sim objects." },
   {NULL}  /* Sentinel */
 };
