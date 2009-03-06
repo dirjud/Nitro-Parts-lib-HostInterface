@@ -1,0 +1,31 @@
+
+module Wrapper(
+    
+    input wire if_clock,
+    input wire [2:0] ctl,
+    input wire [3:0] state,
+    output wire rdy,
+    output wire out,
+    input wire we,
+    input wire [15:0] datain,
+    output wire [15:0] dataout,
+    input wire CLKA,
+    input wire CLKB,
+    input wire CLKC
+);
+
+  wire [15:0] dataio = we ? datain : 16'hZ;
+  assign dataout = dataio;
+
+  MyTopModule sim(
+    .if_clock(!if_clock),
+    .ctl(ctl),
+    .state(state),
+    .rdy(rdy),
+    .out(out),
+    .data(dataio),
+    .button(2'b11)
+  );
+
+endmodule
+

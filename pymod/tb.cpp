@@ -46,7 +46,7 @@ void advance() {
     eval=true;
   }
   if (main_time % 50 == 0) {
-    tb->sdram_clki = !tb->sdram_clki;
+    tb->CLKA = !tb->CLKA;
     eval=true;
   }
   if (main_time % 200 == 0) {
@@ -83,10 +83,14 @@ void iwait(int cycles) {
 /**
  * Wait until rdy is high then send a write w/ the data.
  **/
-void single_write(int val) {
+int single_write(int val) {
     // takes a few clock cycles
     iwait(4);
-    do { iclock_cycle(); } while ( !tb->rdy );
+    int wait=0;
+    do {
+     iclock_cycle(); 
+     if (++wait > 1000) return -1;
+    } while ( !tb->rdy );
     tb->ctl = 2; // rdwr_b = 1
     tb->we = 1;
     tb->datain = val;
@@ -95,23 +99,35 @@ void single_write(int val) {
     tb->ctl = 0;
     tb->datain = 0;
     iwait(5);
+    return 0;
 }
 
 /**
  *	Send a read.  Wait until a rdy comes back with the data
  **/
 
-int single_read() {
+int single_read(int* val) {
     
     iwait(5);
+
+//    state 0
     tb->ctl = 2;
     iclock_cycle();
+
+//   state 1
+    int wait=0;
+    int rdy_s, dataout_s;
     tb->ctl = 0;
-    iclock_cycle();
-    do { iclock_cycle(); } while (!tb->rdy);    
-    int val = tb->dataout;
+    do { 
+     rdy_s = tb->rdy;
+     dataout_s = tb->dataout;
+     iclock_cycle();
+     if (++wait > 1000) return -1;
+    } while (!rdy_s); 
+
+    *val = dataout_s;
     iwait(5);
-    return val;
+    return 0;
 }
 
 #define dprintf(...) printf(__VA_ARGS__)
@@ -243,10 +259,14 @@ static PyObject *set(PyObject *self, PyObject *args) {
 
   set_addrs(ep_addr,reg_addr);
   tb->state = SETRVAL;
-  single_write(val);
+  int ret=single_write(val);
   tb->state= IDLE;
   iclock_cycle();
 
+  if (ret<0) {
+    PyErr_SetString(PyExc_Exception, "Write Didn't Work" );
+    return NULL;
+  }
 
   Py_RETURN_NONE; 
 }
@@ -268,9 +288,14 @@ static PyObject *get(PyObject *self, PyObject *args) {
   
   set_addrs(ep_addr,reg_addr);
   tb->state = GETRVAL;
-  val=single_read();
+  int ret=single_read(&val);
   tb->state = IDLE;
   iclock_cycle();
+
+  if (ret < 0) {
+    PyErr_SetString(PyExc_Exception, "Read didn't work" );
+    return NULL;
+  }
   
   return Py_BuildValue("i", val);
 }
@@ -320,70 +345,6 @@ static PyObject *read(PyObject* self, PyObject *args ) {
   
 }
 
-//static PyObject *read(PyObject *self, PyObject *args) {
-//  int ep_addr;
-//  int reg_addr;
-//  int len;
-//
-//  uint16_t *data=NULL;
-//  npy_intp dims[1];
-//  PyObject *img;
-//
-//  CHECK_INIT
-//
-//  if (!PyArg_ParseTuple(args, "iii", &ep_addr, &reg_addr, &len) ) {
-//    PyErr_SetString(PyExc_Exception, "Expected arguments: ep-addr: Integer, reg_addr: Integer, len (n bytes): Integer");
-//    return NULL;
-//  }
-//  
-//  set_addrs(ep_addr,reg_addr);
-//
-//  tb->state = RDTC;
-//  single_write(len/2); 
-//
-//  tb->state = RDDATA;
-//// data comes two bytes at a time
-//  data = (uint16_t *) malloc(len/2*sizeof(uint16_t));
-//  fifo_read(len/2,data);
-//  
-////  for (int i=0;i<len/2;++i) {
-////    printf ( "Data %d: %d\n", i, buf[i]);
-////  }
-//  
-//  tb->state = IDLE;
-//  iclock_cycle();
-//  
-////  char *chars = (char*)malloc(len*sizeof(char));
-////  // data goes back little-endian I believe
-////  for (int i=0,j=0;i<len/2;++i,j+=2) {
-////    chars[j] = buf[i] & 0xff;
-////    chars[j+1] = (buf[i] >> 8) & 0xff;
-//////    printf ( "char %d: %d\n" , j, chars[j]);
-//////    printf ( "char %d: %d\n", j+1, chars[j+1]);
-////  }
-//  
-//  //
-//  // if we make it here, the image has been captured, so let's put it into
-//  // a numpy array
-//  dims[0] = len/2;
-////  dims[1] = cols;
-//  img = PyArray_SimpleNewFromData(1, dims, NPY_UINT16, data);
-//  
-//  // Now setup the flags to make this array owner of the data buffer
-//  // so that it will deallocate it correctly when it gets deleted.  Would
-//  // do that in the creation of this object, but the documentation says that
-//  // it will PyArray_NewFromDesc() function clears the NPY_OWNDATA flag.
-//  PyArray_FLAGS(img) |= NPY_OWNDATA | NPY_WRITEABLE | NPY_ALIGNED;
-//  
-//  return img;
-// 
-// /* PyObject *ret = PyString_FromStringAndSize( chars, len );
-//  free(buf);
-//  free(chars);
-//  
-//  return ret; */
-//}
-
 
 static PyObject *write (PyObject *self, PyObject *args) {
 
@@ -426,212 +387,6 @@ static PyObject *close(PyObject *self, PyObject *args) {
   Py_RETURN_NONE; 
 }
 
-
-/*
-static PyObject *load_img(PyObject *self, PyObject *args) {
-  PyObject *img;
-  CHECK_INIT
-  if (!PyArg_ParseTuple(args, "O", &img)) {
-    PyErr_SetString(PyExc_Exception, "Argument should be a numpy array");
-    return NULL;
-  }
-  if(!PyArray_Check(img) ||
-     (PyArray_NDIM(img) > 3) ||
-     (PyArray_NDIM(img)==3 && PyArray_DIM(img, 2) > 1) ||
-     (PyArray_NDIM(img)<2) ||
-     (PyArray_DIM(img, 0) != ROWS) || (PyArray_DIM(img, 1) != COLS)) {
-    PyErr_SetString(PyExc_Exception, "Array is not the correct size");
-    return NULL;
-  }
-
-  img = (PyObject *) PyArray_GETCONTIGUOUS((PyArrayObject *) img); // this creates a new refernce that we need to decrement when done.  Furthermore it ensures the data is contiguous, which is necessary to memcpy it into the imager.
-
-  if(PyArray_TYPE(img) == NPY_UINT) {
-    tb->v->top->top_ana->m_top_ana->load_img<npy_uint>((npy_uint*) PyArray_DATA(img));
-  } else if(PyArray_TYPE(img) == NPY_USHORT) {
-    tb->v->top->top_ana->m_top_ana->load_img<npy_ushort>((npy_ushort*) PyArray_DATA(img));
-  } else {
-    PyErr_SetString(PyExc_Exception, "Your array type is not supported.  Use a uint32 or uint16.");
-    Py_DECREF(img);
-    return NULL;
-  }
-  Py_DECREF(img); // delete the reference I create with the GETCONTIGUOUS command
-  Py_RETURN_NONE;
-}
-*/
-/*
-static PyObject *shape(PyObject *self, PyObject *args) {
-  CHECK_INIT
-  return Py_BuildValue("ii", tb->v->top->top_ana->m_top_ana->rows(), tb->v->top->top_ana->m_top_ana->cols());
-} */
-/*
-static PyObject *capture_frame(PyObject *self, PyObject *args, PyObject *keywds) {
-  int rows, cols, pos, max_pos, col_count;
-  uint16_t *data=NULL;
-  int timeout = -1;
-  npy_intp dims[2];
-  PyObject *img;
-  PyObject *callback = NULL, *callback_result, *callback_args;
-  static char *kwlist[] = { "timeout", "callback",NULL };
-
-  CHECK_INIT
-
-  if(!PyArg_ParseTupleAndKeywords(args, keywds, "|iO", kwlist, &timeout, &callback)) {
-    return NULL;
-  }
-
-  if(callback && !PyCallable_Check(callback)) {
-    PyErr_SetString(PyExc_Exception, "callback function is not callable.");
-  }
-
-  if(tb->clk == 0) advance(); // sync to clock rising edge
-
-  // wait until fv goes high
-  while((timeout == -1 || timeout > 0) && (tb->fv == 0)) {
-    wait(2); // advance 1 whole clock cycle
-  }
-
-  // check if fv is high and raise a timeout exception if it hasn't
-  if(!tb->fv) {
-    PyErr_SetString(PyExc_Exception, "Timed out waiting for frame valid signal fv to go high");
-    return NULL;
-  }
-
-  // initially set rows and cols to max.  later we will update these parameters
-  // after collecting the actual image based on the fv and lv signals.
-  rows = tb->v->top->top_ana->m_top_ana->rows();
-  cols = tb->v->top->top_ana->m_top_ana->cols();
-  max_pos = rows * cols;
-
-  // allocate the a buffer that can hold the max image.
-  data = (uint16_t *) malloc(rows*cols*sizeof(uint16_t));
-  if(!data) { 
-    PyErr_SetString(PyExc_Exception,"Error allocating memory to store image.");
-    goto error1; 
-  }
-    
-  // now collect the image and measure the rows and cols
-  cols = -1;
-  rows = 0;
-  pos = 0;
-  while(tb->fv) {
-    while(!tb->lv && tb->fv) { wait(2); } // wait for line valid to go high
-
-    if(!tb->fv) { break; } // done with the frame
-
-    // if we made it here, lv is high, so let's collect this row
-    col_count = 0;
-    while(tb->lv && tb->fv) {
-      if(pos >= max_pos) {
-	PyErr_SetString(PyExc_Exception,"Error: Image collected image is larger than phyiscal image.");
-	goto error1;
-      }
-      col_count += 1;
-      data[pos++] = ((uint16_t) tb->data_out) << (16-DATA_WIDTH); // record the data and left justify it.
-      wait(2); // go to the next clock
-    }
-    rows++; // record this row
-
-    // check if the number of cols in this row is consistent with the others
-    if(cols == -1) {
-      cols = col_count;
-    } else {
-      if(col_count != cols) {
-	PyErr_SetString(PyExc_Exception,"Error occurred collecting image.  The number of columns per row is not consistent");
-	goto error1;
-      }
-    }
-
-    // call the row received callback
-    if(callback) {
-      callback_args = Py_BuildValue("(i)", rows);
-      callback_result = PyEval_CallObject(callback, callback_args);
-      Py_DECREF(callback_args);
-      if(!callback_result) {  // an exception occurred in the callback
-	goto error1;
-      }
-      Py_DECREF(callback_result);
-    }
-  }
-
-  // reduce the memory allocation now if necessary
-  data = (uint16_t *) realloc(data, rows*cols*sizeof(uint16_t));
-
-  // if we make it here, the image has been captured, so let's put it into
-  // a numpy array
-  dims[0] = rows;
-  dims[1] = cols;
-  img = PyArray_SimpleNewFromData(2, dims, NPY_UINT16, data);
-  
-  // Now setup the flags to make this array owner of the data buffer
-  // so that it will deallocate it correctly when it gets deleted.  Would
-  // do that in the creation of this object, but the documentation says that
-  // it will PyArray_NewFromDesc() function clears the NPY_OWNDATA flag.
-  PyArray_FLAGS(img) |= NPY_OWNDATA | NPY_WRITEABLE | NPY_ALIGNED;
-  
-  return img;
-
- error1:
-  if(data) { free(data); }
-  return NULL;
-
-}
-*/
-/*
-static PyObject *set_col_offsets(PyObject *self, PyObject *args) {
-  int cols;
-  PyObject *offsets;
-
-  CHECK_INIT
-
-  if(!PyArg_ParseTuple(args, "O", &offsets)) { 
-    return NULL;
-  }
-
-  cols = tb->v->top->top_ana->m_top_ana->cols();
-  if(!PyArray_Check(offsets) || PyArray_NDIM(offsets) != 1 ||
-     PyArray_DIM(offsets, 0) != cols) {
-    PyErr_SetString(PyExc_Exception, "Argument not a numpy array or not the right size");
-    return NULL;
-  }
-
-  offsets = (PyObject *) PyArray_GETCONTIGUOUS((PyArrayObject *) offsets); // this creates a new refernce that we need to decrement when done.  Furthermore it ensures the data is contiguous, which is necessary to memcpy it into the imager.
-
-  if(PyArray_TYPE(offsets) == NPY_UINT) {
-    tb->v->top->top_ana->m_top_ana->set_col_offsets<npy_uint>((npy_uint*) PyArray_DATA(offsets));
-  } else if(PyArray_TYPE(offsets) == NPY_USHORT) {
-    tb->v->top->top_ana->m_top_ana->set_col_offsets<npy_ushort>((npy_ushort*) PyArray_DATA(offsets));
-  } else {
-    PyErr_SetString(PyExc_Exception, "Your array type is not supported.  Use a uint32 or uint16.");
-    Py_DECREF(offsets);
-    return NULL;
-  }
-  Py_DECREF(offsets); // delete the reference I create with the GETCONTIGUOUS command
-  Py_RETURN_NONE;
-}
-*/
-
-//typedef struct t_SignalTrans {
-//  char *name;
-//  void *signal;
-//}
-//
-//static SignalTrans sig_trans[] = {
-//  {"clk", tb->clk,  },
-//  {"reset_n", tb->reset_n },
-//  {"i2c_master_header", tb->i2c_master_header },
-//  {"i2c_master_addr", tb->i2c_master_addr },
-//  {"i2c_master_datai", tb->i2c_master_datai },
-//  {"i2c_master_datao", tb->i2c_master_datao },
-//  {"i2c_master_we", tb->i2c_master_we },
-//  {"i2c_master_re", tb->i2c_master_re },
-//  {"i2c_master_status", tb->i2c_master_status },
-//  {"i2c_master_clk_divider", tb->i2c_master_clk_divider },
-//  {"fv", tb->fv },
-//  {"lv", tb->lv },
-//  {"data_out", tb->data_out },
-//  {NULL, NULL}  /* Sentinel */
-//};
 
 
 /*************************************  Vtb extension module ****************/

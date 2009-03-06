@@ -1,16 +1,12 @@
-
-# define SIM_FILES
-# and TOP
-# your TOP must have the host interface pins defined 
-# and it must be named pcb.v (until we fix verilator to be able to dynamically set control pins by a name
-# and OBJ_DIR
-# PYMOD_PATH
-
-#XILINX_INC=/opt/xilinx/ise8.2i/verilog/src/unisims
-#SDRAM=../lib/rtl/sdramCtrl
-#SDRAM_INC=$(SDRAM)/rtl
-#SDRAM_MOD=$(SDRAM)/models
-
+# In your makefile:
+# defin PYMOD_PATH = the path where this Makefile and tb.cpp are located
+# define SIM_FILES = all the files to 
+# define SIM_TOP location of your pcb.v file.
+# 	SIM_TOP must have the host interface pins defined 
+#   and it must be named pcb.v (until we fix verilator to be able to dynamically set control pins by a name
+#   See pcb.v.sample
+# define OBJ_DIR = Where ever you want the verilator output dumpted.
+# define INCLUDE_PATHS = any additional include directories for verilator
 
 Vpcb.so: $(OBJ_DIR)/Vpcb.mk $(PYMOD_PATH)/tb.cpp
 	make -C $(OBJ_DIR) -f Vpcb.mk \

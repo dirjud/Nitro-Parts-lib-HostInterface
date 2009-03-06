@@ -9,6 +9,9 @@ module Wrapper(
     output wire rdy,
     output wire out,
     input wire we,
+    input wire CLKA,
+    input wire CLKB,
+    input wire CLKC,
     input wire [15:0] datain,
     output wire [15:0] dataout
 );
@@ -99,7 +102,7 @@ module DiSim (
          slow_writer_timeout <= 0;
         end else begin
             // this block demonstrates how to use DI with read data
-            // rdwr_ready must predict a read in two cycles.
+            // rdwr_ready must predict a read in one cycle
             // when diRead is high, you must clock out the value for that read
             // one cycle later
             if (diEpAddr == `EP_XEM3010 && diRegAddr == `REG_XEM3010_counter_fifo_0) begin
