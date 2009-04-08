@@ -157,13 +157,6 @@ void fifo_read(int count=1,uint16_t *buf=NULL) {
     int rdy_s=0;
 
 
-    enum  { 
-        ONE=0,
-        TWO=1,
-        THREE=4,
-        FOUR=5 } ctl_states;
-
-
 // gpif state machine
     int wait=0;
     while ( !exit ) {
@@ -175,7 +168,7 @@ void fifo_read(int count=1,uint16_t *buf=NULL) {
   
         switch ( state ) {
            case 0:
-                tb->ctl = 2;
+                tb->ctl = 6; // rd+ctl2
                 if ( rdy_s ) { //tb->rdy ) {
                     state = 1;
                 } else {
@@ -187,10 +180,9 @@ void fifo_read(int count=1,uint16_t *buf=NULL) {
                 }
                 break;
             case 1:
-                tb->ctl = 2|TWO;
+                tb->ctl = 6; // rd+ctl2
                 if ( !rdy_s || read>=count ) {
                    state = 2; 
-                 //  tb->ctl = 0;
                 }
                 buf[read++] = dataout_s;
                 break;
@@ -198,7 +190,7 @@ void fifo_read(int count=1,uint16_t *buf=NULL) {
             case 3:
             case 4:
             case 5:
-                tb->ctl = 0|THREE;
+                tb->ctl = 4; // ctl2
                 if (rdy_s) {
                     state = 1;
                 } else {
@@ -206,8 +198,7 @@ void fifo_read(int count=1,uint16_t *buf=NULL) {
                 }
                 break;
             case 6:
-               tb->ctl = 0|FOUR;
-               tb->ctl = 0;
+               tb->ctl = 4; // ctl2
                if ( read >= count ) {
                  exit=true; 
                } else {
@@ -219,6 +210,7 @@ void fifo_read(int count=1,uint16_t *buf=NULL) {
         }
        
     }
+    tb->ctl=0;
     
 }
 
@@ -331,16 +323,31 @@ static PyObject *read(PyObject* self, PyObject *args ) {
   // see global interpreter lock http://docs.python.org/api/threads.html#l2h-911
   int result;
   Py_BEGIN_ALLOW_THREADS
-//  result = self->pDevIf->read(term, addr,(char*)data,length);
 
   set_addrs(term,addr);
 
+  // read blocks of data in 512 byte packets (256 tc)
+  int total_tc=length/2;
+  int transferred=0;
+  int cur_transfer = total_tc <= 256 ? total_tc : 256;
+
+  // initial 
   tb->state = RDTC;
-  single_write(length/2); 
+  single_write(cur_transfer); 
 
   tb->state = RDDATA;
+  while ( transferred < total_tc ) {
+    cur_transfer = total_tc - transferred <= 256 ? total_tc-transferred : 256 ; 
 
-  fifo_read(length/2,(uint16_t*)data);
+    if (cur_transfer < 256 && transferred>0) {
+        tb->state = RDTC;
+        single_write( cur_transfer );
+        tb->state = RDDATA; 
+    }
+
+    fifo_read(cur_transfer,(uint16_t*)(data+transferred*2));
+    transferred+=cur_transfer;
+  }
 
   tb->state = IDLE;
   iclock_cycle();

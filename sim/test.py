@@ -31,6 +31,13 @@ for x in range(6):
 
 print "Counter Fifo:", d.read(0,3,8)
 
+c=d.get(0,4);
+readsize=513
+n=numpy.zeros(readsize,dtype=numpy.uint16)
+d.read(0,3,data=n)
+print "Last Read ", n[-1], "Expecting", c+readsize
+
+
 print "Slow Writer Value %02x" % d.get(0,2)
 
 d.close();

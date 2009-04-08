@@ -70,9 +70,12 @@ assign rdy=hi_drive_rdy?hi_rdy:
 reg [3:0] state_code_old; // for detecting sc change
 reg [2:0] ctlreg;
 wire rdwr_b = ctlreg[1];
+wire ctl2 = ctlreg[2];
+reg ctl2_s;
 reg [15:0] hiDataIn;
 reg [15:0] hiDataOut;
 reg [15:0] rd_tc;
+reg [15:0] rd_tc_reset;
 
 wire [15:0] datain;
 wire [15:0] dataout;
@@ -91,6 +94,7 @@ always @(posedge if_clock) begin
  hiDataIn <= datain;
 
  ctlreg <= ctl;
+ ctl2_s <= ctl2;
 end
 
 
@@ -167,6 +171,7 @@ always @(posedge if_clock or negedge resetb) begin
                 hi_rdy <= 1;
                 if ( rdwr_b ) begin
                     rd_tc <= hiDataIn;
+                    rd_tc_reset <= hiDataIn;
                 end
             end
        RDDATA:
@@ -178,7 +183,9 @@ always @(posedge if_clock or negedge resetb) begin
                 hi_rdy <= diRead;
                 hiDataOut <= diRegDataOut;
 
-               if (rdwr_b && rd_ready && rd_tc>0) begin //&& !hi_read_save) begin
+               if (!ctl2_s && ctl2 && rd_tc==0) begin // new gpif
+                  rd_tc <= rd_tc_reset;
+               end else if (rdwr_b && rd_ready && rd_tc>0) begin //&& !hi_read_save) begin
                   diRead <= 1;
                   rd_tc <= rd_tc - 1;
                 end else begin
