@@ -1,5 +1,5 @@
-#include <Python.h>
-#include "numpy/arrayobject.h"
+#include <nitro/types.h>
+#include <nitro/error.h>
 
 #include "Vpcb.h"
 #include "SpCommon.h"
@@ -26,7 +26,6 @@ bool trace = true;
 
 int cycle_timeout=1000;
 
-#define CHECK_INIT   if(tb == NULL) { PyErr_SetString(PyExc_Exception, "You have not initialized this sim yet.  Run init() function"); return NULL; }
 
 #define dprintf(...) printf(__VA_ARGS__)
 
@@ -224,14 +223,9 @@ void set_addrs(int ep_addr, int reg_addr) {
 
 
 
-static PyObject *init(PyObject *self, PyObject *args) {
-  const char *filename=NULL;
+extern "C" void* ud_init(const char* args[]) {
+  const char *filename=args[0];
 
-  if (!PyArg_ParseTuple(args, "|s", &filename)) {
-    PyErr_SetString(PyExc_Exception, "Optional argument should be a string specify a the vcd trace filename");
-    return NULL;
-  }
-    
   tb   = new Vpcb("tb");	// Create instance of module
   Verilated::debug(0);
 
@@ -244,87 +238,47 @@ static PyObject *init(PyObject *self, PyObject *args) {
     tb->trace (tfp, 99);	// Trace 99 levels of hierarchy
     tfp->open (filename);	// Open the dump file
   }
-  Py_RETURN_NONE; 
+  return NULL;
 }
 
-static PyObject *set(PyObject *self, PyObject *args) {
-  int val,ep_addr,reg_addr;
-
-  CHECK_INIT;
-
-  if (!PyArg_ParseTuple(args, "iii", &ep_addr,&reg_addr, &val)) {
-    PyErr_SetString(PyExc_Exception, "Arguments are ep_addr, reg_addr, val (ints)");
-    return NULL;
-  }
-
-  set_addrs(ep_addr,reg_addr);
+extern "C" void ud_set ( uint32 terminal_addr, uint32 reg_addr, uint32 value, uint32 timeout, void* ud ) {
+  
+  set_addrs(terminal_addr,reg_addr);
   tb->state = SETRVAL;
-  int ret=single_write(val);
+  int ret=single_write(value);
   tb->state= IDLE;
   iclock_cycle();
 
+  
   if (ret<0) {
-    PyErr_SetString(PyExc_Exception, "Write Didn't Work" );
-    return NULL;
+    throw Nitro::Exception ( "Write didn't work" );
   }
 
-  Py_RETURN_NONE; 
 }
 
 
-
-
-static PyObject *get(PyObject *self, PyObject *args) {
-  int ep_addr;
-  int reg_addr;
+extern "C" uint32 ud_get ( uint32 terminal_addr, uint32 reg_addr, uint32 timeout, void* ud ) {
   int val;
-
-  CHECK_INIT
-
-  if (!PyArg_ParseTuple(args, "ii", &ep_addr, &reg_addr) ) {
-    PyErr_SetString(PyExc_Exception, "Expected arguments: ep-addr: Integer, reg_addr: Integer");
-    return NULL;
-  }
   
-  set_addrs(ep_addr,reg_addr);
+  set_addrs(terminal_addr,reg_addr);
   tb->state = GETRVAL;
   int ret=single_read(&val);
   tb->state = IDLE;
   iclock_cycle();
 
   if (ret < 0) {
-    PyErr_SetString(PyExc_Exception, "Read didn't work" );
-    return NULL;
+    throw Nitro::Exception ( "Get Didn't work" );
   }
+
   
-  return Py_BuildValue("i", val);
+  return val;
 }
 
-static PyObject *read(PyObject* self, PyObject *args ) {
-    int term,addr,length;
-    PyObject* pyObj;
-    unsigned char* data;
-     if (!PyArg_ParseTuple ( args, "iiO", &term,&addr,&pyObj )) {
-     PyErr_SetString ( PyExc_Exception, "read ( term, addr, data )" );
-     return NULL;
-    }
 
-   if(PyString_Check(pyObj)) {
-    length = PyString_Size(pyObj);
-    data = (unsigned char*) PyString_AsString(pyObj);
-  } else if(PyArray_Check(pyObj)) {
-    length = PyArray_NBYTES(pyObj);
-    data = (unsigned char*) PyArray_DATA(pyObj);
-  } else {
-    PyErr_SetString(PyExc_Exception, "Second argument must be data as a string object or numpy array");
-    return NULL;
-  }
+extern "C" void ud_read( uint32 terminal_addr, uint32 reg_addr, uint8* data, size_t length, uint32 timeout, void* ud ) {
 
-  // see global interpreter lock http://docs.python.org/api/threads.html#l2h-911
-  int result;
-  Py_BEGIN_ALLOW_THREADS
 
-  set_addrs(term,addr);
+  set_addrs(terminal_addr,reg_addr);
 
   // read blocks of data in 512 byte packets (256 tc)
   int total_tc=length/2;
@@ -352,45 +306,18 @@ static PyObject *read(PyObject* self, PyObject *args ) {
   tb->state = IDLE;
   iclock_cycle();
  
-  Py_END_ALLOW_THREADS
-
-//  CHECK_DEVIF_RET(result);
-
-  Py_RETURN_NONE;
-  
 }
 
 
-static PyObject *write (PyObject *self, PyObject *args) {
-
+extern "C" void ud_write( uint32 terminal_addr, uint32 reg_addr, const uint8* data, size_t length, uint32 timeout, void* ud ) { 
   // no ep's implemented right now.
   //
   iwait(50);
 
-  Py_RETURN_NONE;
 }
 
+extern "C" void ud_close(void*){
 
-
-static PyObject *time(PyObject *self, PyObject *args) {
-  return Py_BuildValue("i", main_time);
-}
-
-
-static PyObject *clk_rise(PyObject *self, PyObject *args) {
-  CHECK_INIT
-  iclock_cycle();
-  Py_RETURN_NONE;
-}
-
-static PyObject *clk_fall(PyObject *self, PyObject *args) {
-  CHECK_INIT
-  iclock_cycle(false);
-  Py_RETURN_NONE;
-}
-
-static PyObject *close(PyObject *self, PyObject *args) {
-  CHECK_INIT
   tb->final();
   delete tb;
   if(trace) {
@@ -399,54 +326,6 @@ static PyObject *close(PyObject *self, PyObject *args) {
   }
   tb = NULL;
   tfp = NULL;
-  Py_RETURN_NONE; 
 }
 
 
-static PyObject *set_timeout(PyObject *self, PyObject *args) {
-
-  int timeout;
-    
-  CHECK_INIT
-  
-  if (!PyArg_ParseTuple(args, "i", &timeout) ) {
-    PyErr_SetString(PyExc_Exception, "Expected arguments: timeout: Integer");
-    return NULL;
-  }
-
-  if (timeout < 1) {
-    PyErr_SetString(PyExc_Exception, "timeout must be >= 1" );
-    return NULL;
-  }
-  cycle_timeout=timeout;
-
-  Py_RETURN_NONE;
-}
-
-
-/*************************************  Vtb extension module ****************/
-static PyMethodDef Vpcb_methods[] = {
-  {"init", init, METH_VARARGS,"Creates an instance of the simulation." },
-  {"set",  set,  METH_VARARGS,"Sets the specified port to specified value." },
-  {"get",  get,  METH_VARARGS,"Gets the current value of the specified port." },
-  {"read", read, METH_VARARGS,"Read fifo data from a register."},
-  {"write",write,METH_VARARGS,"Write fifo data to a register."},
-  {"time", time, METH_NOARGS, "Gets the current time of the simulation." },
-  {"clk_rise", clk_rise, METH_NOARGS, "Advances sim to next rising clk edge"},
-  {"clk_fall", clk_fall, METH_NOARGS, "Advances sim to next falling clk edge"},
-  {"set_timeout", set_timeout, METH_VARARGS, "Set the number of cycles before a read/write times out." },
-  {"close",  close,  METH_NOARGS, "Ends simulation & deletes all sim objects." },
-  {NULL}  /* Sentinel */
-};
-
-#ifndef PyMODINIT_FUNC	/* declarations for DLL import/export */
-#define PyMODINIT_FUNC void
-#endif
-PyMODINIT_FUNC initVpcb(void) {
-    PyObject* m;
-
-    m = Py_InitModule3("Vpcb", Vpcb_methods,
-                       "Ubixum test device.");
-
-    import_array(); // necessary to use numpy arrays
-}

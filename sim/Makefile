@@ -1,5 +1,5 @@
 
-PYMOD_PATH=../pymod
+USERDEV_PATH=../userdev
 SIM_TOP=pcb.v
 OBJ_DIR=obj_dir
 SIM_FILES = ../rtl/HostInterface.v \
@@ -7,7 +7,7 @@ SIM_FILES = ../rtl/HostInterface.v \
 			di/XEM3010EndPoint.v
 INCLUDE_PATHS=di			
 
-include ../pymod/sim.mk
+include ../userdev/sim.mk
 
 
 trace.vcd: Vpcb.so
