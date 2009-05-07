@@ -1,5 +1,6 @@
 #include <nitro/types.h>
 #include <nitro/error.h>
+#include <cstdlib>
 
 #include "Vpcb.h"
 #include "SpCommon.h"
@@ -223,7 +224,7 @@ void set_addrs(int ep_addr, int reg_addr) {
 
 
 
-extern "C" void* ud_init(const char* args[]) {
+extern "C" void* ud_init(const char* args[],void* userdat) {
   const char *filename=args[0];
 
   tb   = new Vpcb("tb");	// Create instance of module
@@ -238,6 +239,14 @@ extern "C" void* ud_init(const char* args[]) {
     tb->trace (tfp, 99);	// Trace 99 levels of hierarchy
     tfp->open (filename);	// Open the dump file
   }
+
+
+  if (args[1]) {
+    // args[1] is the timeout
+    const char* timeout = args[1];
+    cycle_timeout = atoi ( timeout ); 
+  }
+
   return NULL;
 }
 
