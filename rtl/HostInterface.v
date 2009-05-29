@@ -1,203 +1,151 @@
-///////////////////////////////////////////////////////////////////////////////
-// Author:      Lane Brooks
-// Date:        Jun 16, 2006
-// License:     GPL
-//
-// Description: This module abstracts to host interface to the PC
-//  to implement two features-- the Device Interface and the Block Transfer
-//  Interface.
-//
-//  Device Interface: The device interface (or register interface) allows
-//   the PC to set and get registers.
-//
-//  Block Transfer Interface: The block transfer interface is controlled
-//   by the PC.  This implementation is geared towards applications that
-//   are block oriented.  From a high level, the flow is as follows:
-//     1.  PC issues a COLLECT_BLOCK trigger
-//     2.  When the data is ready, we send back a DATA_READY trigger
-//     3.  PC reads the data and returns to step 1.
-//
-///////////////////////////////////////////////////////////////////////////////
 
 
-`timescale 1ns / 1ps
-
+// NOTES:
+// - Need to make sure FX2 drives databus during IDLE
 
 module HostInterface
-   (
+  (
+   input wire ifclk,
+   input wire [2:0] ctl,
+   input wire [3:0] state,
+   output reg [1:0] rdy,
+   inout wire [15:0] data,
+   
+   input wire resetb,
+   
+   output reg [15:0] di_term_addr,
+   output reg [15:0] di_reg_addr,
+   output reg [15:0] di_reg_datai,
+   input      [15:0] di_reg_datao,
+   output reg        di_read,
+   input wire        di_read_rdy,
+   output reg        di_write,
+   input wire        di_write_rdy
+   );
 
-    // physical interface
-    input wire if_clock,
-    input wire [2:0] ctl,
-    input wire [3:0] state,
-    output wire rdy,
-//    output wire out, // unused?
-    inout wire [15:0] data,
+   // states
+   //parameter IDLE =         0;
+   parameter SETEP =       1;
+   parameter SETREG =      2;
+   parameter SETRVAL =     3;
+   parameter RDDATA =      4;
+   parameter RESETRVAL =   5;
+   parameter GETRVAL =     6;
+   parameter RDTC    =     7;
+   parameter WRDATA =      8;
+   
+   
+   wire [15:0] datai;
+   reg [15:0] datao;
+   reg        oe;
+   reg [15:0] datai_reg;
+   reg [3:0]  state_reg;
+   reg [2:0]  ctl_reg;
+   wire rdwr = ctl_reg[1];
 
-    // Device Interface
-    input wire resetb,
-    
-    output reg [15:0] diEpAddr,
-    output reg [15:0] diRegAddr,
-    output reg [15:0] diRegDataIn,
-    input  wire [15:0] diRegDataOut,
-    output  reg   diWrite,
-    output  reg   diRead,
-    output  reg   diReset,
-    input wire rd_ready,
-    input wire wr_ready
-    );
+   reg [15:0] tc;
+   reg [15:0] tc_reset;
 
-//parameter IDLE =        4'b0000;
-// op codes
-parameter SETEP =       4'b0001;
-parameter SETREG =      4'b0010;
-parameter SETRVAL =     4'b0011;
-parameter RDDATA =      4'b0100;
-parameter RESETRVAL =   4'b0101;
-parameter GETRVAL =     4'b0110;
-parameter RDTC    =     4'b0111;
-parameter WRDATA =      4'b1000;
+   IOBuf iob[15:0] 
+     (.oe(oe),
+      .data(data),
+      .in(datai),
+      .out(datao)
+      );
 
-    
-// host stuff
-reg [3:0] state_code;
-reg hi_drive_rdy, hi_rdy, hi_drive_data;
-assign rdy=hi_drive_rdy?hi_rdy:
-       state_code == SETRVAL ? wr_ready:
-       rd_ready;
+   always @(posedge ifclk or negedge resetb) begin
+      if (!resetb) begin
+         di_term_addr <= 0;
+         di_reg_addr  <= 0;
+         di_reg_datai <= 0;
+         tc           <= 0;
+         tc_reset     <= 0;
+         datao        <= 0;
+         rdy          <= 0;
+         di_write     <= 0;
+         di_read      <= 0;
+         oe           <= 0;
+         datai_reg    <= 0;
+         state_reg    <= 0;
+         ctl_reg      <= 0;
 
-reg [3:0] state_code_old; // for detecting sc change
-reg [2:0] ctlreg;
-wire rdwr_b = ctlreg[1];
-wire ctl2 = ctlreg[2];
-reg ctl2_s;
-reg [15:0] hiDataIn;
-reg [15:0] hiDataOut;
-reg [15:0] rd_tc;
-reg [15:0] rd_tc_reset;
+      end else begin
+         state_reg    <= state;
+         ctl_reg      <= ctl;
+         datao        <= di_reg_datao;
+         datai_reg    <= datai;
+         
+         case (state_reg)
+           SETEP: begin
+              rdy      <= 1;
+              di_write <= 0;
+              di_read  <= 0;
+              oe       <= 0;
+              if(rdwr) di_term_addr <= datai_reg;
+           end
+      
+           SETREG: begin
+              rdy      <= 1;
+              di_write <= 0;
+              di_read  <= 0;
+              oe       <= 0;
+              if(rdwr) di_reg_addr <= datai_reg;
+           end
+      
+           SETRVAL: begin
+              rdy         <= {1'b0, di_write_rdy };
+              di_write    <= rdwr;
+              di_read     <= 0;
+              oe          <= 0;
+              di_reg_datai<= datai_reg;
+              if(di_write) di_reg_addr <= di_reg_addr + 1;
+           end
+      
+           GETRVAL: begin
+              rdy         <= {1'b0, di_read_rdy };
+              di_write    <= 0;
+              di_read     <= rdwr;
+              oe          <= 1;
+              if(di_read) di_reg_addr <= di_reg_addr + 1;
+           end
+      
+           RDTC: begin
+              rdy         <= 1;
+              di_write    <= 0;
+              di_read     <= 0;
+              oe          <= 0;
 
-wire [15:0] datain;
-wire [15:0] dataout;
-
-// for sim debug only.
-wire [1:0] gpif_debug = {ctl[2],ctl[0]};
-
-assign dataout = hi_drive_data ? hiDataOut : diRegDataOut;
-
-reg we; // output enable
-
-// register inputs
-always @(posedge if_clock) begin
- state_code <= state;
- state_code_old <= state_code;
- hiDataIn <= datain;
-
- ctlreg <= ctl;
- ctl2_s <= ctl2;
-end
-
-
-
-IOBuf iob[15:0] (
- .we(we),//.we(we_n),
- .data(data),
- .in(datain),
- .out(dataout)
-);
-//assign data = (we) ? hiDataOut: 16'hZ;
-
-// device stuff
-
-
-reg [1:0] state_flgs; // for use within each state
-    
-always @(posedge if_clock or negedge resetb) begin
-
- if (!resetb) begin
-    diEpAddr <= 0;
-    diRegAddr <= 0;
-    diRegDataIn <= 0;
-    rd_tc <= 0;
- end else begin
-
- // you following block causes the host interface
- // to require at least one clock cycle between
- // changing states and setting rdwr_b.
- // shouldn't be a problem since states are set on the firmware
- // side before enabling the gpif
- if (state_code_old != state_code) begin
-  state_flgs <= 0;
-  diWrite <= 0;
-  diRead <= 0;
-  diReset <= 0;
-  we <= 0;
-  hi_drive_rdy <= 0;
-  hi_rdy <= 0;
-  hi_drive_data <= 0;
- end else begin
-    case (state_code)
-        default:
-         begin end
-       SETEP:
-            begin
-             hi_drive_rdy <= 1;
-             hi_rdy <= 1;
-             if(rdwr_b) begin
-                diEpAddr <= hiDataIn;
-             end
-            end
-       SETREG:
-        begin
-            hi_drive_rdy <= 1;
-            hi_rdy <= 1;
-            if(rdwr_b) begin
-                diRegAddr <= hiDataIn;
-            end
-        end
-       SETRVAL:
-            begin
-                diWrite <= ctl[1];
-                diRegDataIn <= datain;
-            end
-       GETRVAL:
-            begin
-                diRead <= ctl[1];
-                we <= 1;
-            end
-       RDTC:
-            begin
-                hi_drive_rdy <= 1;
-                hi_rdy <= 1;
-                if ( rdwr_b ) begin
-                    rd_tc <= hiDataIn;
-                    rd_tc_reset <= hiDataIn;
-                end
-            end
-       RDDATA:
-            begin
-                hi_drive_rdy <= 1;
-                hi_drive_data <= 1;
-
-
-                hi_rdy <= diRead;
-                hiDataOut <= diRegDataOut;
-
-               if (!ctl2_s && ctl2 && rd_tc==0) begin // new gpif
-                  rd_tc <= rd_tc_reset;
-               end else if (rdwr_b && rd_ready && rd_tc>0) begin //&& !hi_read_save) begin
-                  diRead <= 1;
-                  rd_tc <= rd_tc - 1;
-                end else begin
-                  diRead <= 0;
-                end
-                we <= 1; 
-            end
-      endcase
+              if(rdwr) begin
+                 tc       <= datai_reg;
+                 tc_reset <= datai_reg;
+              end
+           end
+      
+           RDDATA: begin
+              rdy        <=  { 1'b0, di_read };
+              di_write   <= 0;
+              oe         <= 1; 
+         
+              if (!ctl_reg[2]) begin // new gpif
+                 di_read <= 0;
+                 tc      <= tc_reset;
+              end else if (rdwr && di_read_rdy && tc>0) begin
+                 di_read <= 1;
+                 tc      <= tc - 1;
+              end else begin
+                 di_read <= 0;
+              end
+              if(di_read) di_reg_addr <= di_reg_addr + 1;
+           end
+           
+           default: begin
+              rdy      <= 0;
+              di_write <= 0;
+              di_read  <= 0;
+              oe       <= 0;
+              tc       <= 0;
+           end
+         endcase
+      end
    end
- end
-
-end
-    
-    
 endmodule

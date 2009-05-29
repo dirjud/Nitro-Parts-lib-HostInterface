@@ -4,10 +4,10 @@ module IOBuf(
     inout wire data,
     output wire in,
     input wire out,
-    input wire we // output enable
+    input wire oe // output enable
 );
 
- assign data = (we) ? out : 1'bz;
+ assign data = (oe) ? out : 1'bz;
  assign in = data;
 
 endmodule
