@@ -17,6 +17,7 @@ module HostInterface
    output reg [15:0] di_reg_addr,
    output reg [15:0] di_reg_datai,
    input      [15:0] di_reg_datao,
+   output reg        di_read_req,
    output reg        di_read,
    input wire        di_read_rdy,
    output reg        di_write,
@@ -45,7 +46,8 @@ module HostInterface
 
    reg [15:0] tc;
    reg [15:0] tc_reset;
-
+   reg one_shot;
+   
    IOBuf iob[15:0] 
      (.oe(oe),
       .data(data),
@@ -68,7 +70,9 @@ module HostInterface
          datai_reg    <= 0;
          state_reg    <= 0;
          ctl_reg      <= 0;
-
+         one_shot     <= 0;
+         di_read_req  <= 0;
+         
       end else begin
          state_reg    <= state;
          ctl_reg      <= ctl;
@@ -77,18 +81,20 @@ module HostInterface
          
          case (state_reg)
            SETEP: begin
-              rdy      <= 1;
-              di_write <= 0;
-              di_read  <= 0;
-              oe       <= 0;
+              rdy         <= 1;
+              di_write    <= 0;
+              di_read     <= 0;
+              di_read_req <= 0;
+              oe          <= 0;
               if(rdwr) di_term_addr <= datai_reg;
            end
       
            SETREG: begin
-              rdy      <= 1;
-              di_write <= 0;
-              di_read  <= 0;
-              oe       <= 0;
+              rdy         <= 1;
+              di_write    <= 0;
+              di_read     <= 0;
+              di_read_req <= 0;
+              oe          <= 0;
               if(rdwr) di_reg_addr <= datai_reg;
            end
       
@@ -96,23 +102,38 @@ module HostInterface
               rdy         <= {1'b0, di_write_rdy };
               di_write    <= rdwr;
               di_read     <= 0;
+              di_read_req <= 0;
               oe          <= 0;
               di_reg_datai<= datai_reg;
               if(di_write) di_reg_addr <= di_reg_addr + 1;
            end
       
            GETRVAL: begin
-              rdy         <= {1'b0, di_read_rdy };
-              di_write    <= 0;
-              di_read     <= rdwr;
               oe          <= 1;
-              if(di_read) di_reg_addr <= di_reg_addr + 1;
+              di_write    <= 0;
+
+              if(!one_shot) begin
+                 di_read     <= 0;
+                 rdy         <= 0;
+                 if(di_read_rdy) begin
+                    di_read_req <= 1;
+                    one_shot    <= 1;
+                 end else begin
+                    di_read_req <= 0;
+                 end
+              end else begin
+                 di_read_req <= 0;
+                 rdy         <= {1'b0, di_read_rdy };
+                 di_read     <= rdwr;
+                 if(di_read) di_reg_addr <= di_reg_addr + 1;
+              end
            end
       
            RDTC: begin
               rdy         <= 1;
               di_write    <= 0;
               di_read     <= 0;
+              di_read_req <= 0;
               oe          <= 0;
 
               if(rdwr) begin
@@ -122,7 +143,7 @@ module HostInterface
            end
       
            RDDATA: begin
-              rdy        <=  { 1'b0, di_read };
+              rdy        <= { 1'b0, di_read };
               di_write   <= 0;
               oe         <= 1; 
          
@@ -130,10 +151,10 @@ module HostInterface
                  di_read <= 0;
                  tc      <= tc_reset;
               end else if (rdwr && di_read_rdy && tc>0) begin
-                 di_read <= 1;
-                 tc      <= tc - 1;
+                 di_read     <= 1;
+                 tc          <= tc - 1;
               end else begin
-                 di_read <= 0;
+                 di_read     <= 0;
               end
               if(di_read) di_reg_addr <= di_reg_addr + 1;
            end
@@ -142,8 +163,10 @@ module HostInterface
               rdy      <= 0;
               di_write <= 0;
               di_read  <= 0;
+              di_read_req<= 0;
               oe       <= 0;
               tc       <= 0;
+              one_shot <= 0;
            end
          endcase
       end
