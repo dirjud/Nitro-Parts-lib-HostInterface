@@ -12,7 +12,7 @@ module HostInterface
    inout wire [15:0] data,
    
    input wire resetb,
-   
+
    output reg [15:0] di_term_addr,
    output reg [15:0] di_reg_addr,
    output reg [15:0] di_reg_datai,
@@ -25,7 +25,7 @@ module HostInterface
    );
 
    // states
-   //parameter IDLE =         0;
+   parameter IDLE =        0;
    parameter SETEP =       1;
    parameter SETADDR =     2;
    parameter SETRVAL =     3;
@@ -107,33 +107,28 @@ module HostInterface
               di_read_req <= 0;
               oe          <= 0;
               di_reg_datai<= datai_reg;
-//              if(di_write) di_reg_addr <= di_reg_addr + 1;
-              one_shot <= 0;
+              one_shot    <= 0;
            end
       
            GETRVAL: begin
               oe          <= 1;
               di_write    <= 0;
 
-//              if(!one_shot) begin
-//                 di_read     <= 0;
-//                 rdy         <= 0;
-//                 if(di_read_rdy) begin
-//                    di_read_req <= 1;
-//                    one_shot    <= 1;
-//                 end else begin
-//                    di_read_req <= 0;
-//                 end
-//              end else begin
+              if(!one_shot) begin
+                 di_read     <= 0;
+                 rdy         <= 0;
+                 if(di_read_rdy) begin
+                    di_read_req <= 1;
+                    one_shot    <= 1;
+                 end else begin
+                    di_read_req <= 0;
+                 end
+              end else begin
                  di_read_req <= 0;
                  rdy         <= {1'b0, di_read_rdy };
                  di_read     <= rdwr;
-//                 if(di_read) begin
-//                    datao <= di_reg_datao;
-//                    di_reg_addr <= di_reg_addr + 1;
-//                 end
               end
-//           end
+           end
       
            RDTC: begin
               rdy         <= 1;
@@ -150,7 +145,6 @@ module HostInterface
            end
       
            RDDATA: begin
-//              datao      <= di_reg_datao;
               rdy        <= { 1'b0, di_read };
               di_write   <= 0;
               oe         <= 1; 
