@@ -27,7 +27,7 @@ module HostInterface
    // states
    //parameter IDLE =         0;
    parameter SETEP =       1;
-   parameter SETREG =      2;
+   parameter SETADDR =     2;
    parameter SETRVAL =     3;
    parameter RDDATA =      4;
    parameter RESETRVAL =   5;
@@ -76,7 +76,7 @@ module HostInterface
       end else begin
          state_reg    <= state;
          ctl_reg      <= ctl;
-         datao        <= di_reg_datao;
+//         datao        <= di_reg_datao;
          datai_reg    <= datai;
          
          case (state_reg)
@@ -87,15 +87,17 @@ module HostInterface
               di_read_req <= 0;
               oe          <= 0;
               if(rdwr) di_term_addr <= datai_reg;
+              one_shot <= 0;
            end
       
-           SETREG: begin
+           SETADDR: begin
               rdy         <= 1;
               di_write    <= 0;
               di_read     <= 0;
               di_read_req <= 0;
               oe          <= 0;
               if(rdwr) di_reg_addr <= datai_reg;
+              one_shot <= 0;
            end
       
            SETRVAL: begin
@@ -106,6 +108,7 @@ module HostInterface
               oe          <= 0;
               di_reg_datai<= datai_reg;
               if(di_write) di_reg_addr <= di_reg_addr + 1;
+              one_shot <= 0;
            end
       
            GETRVAL: begin
@@ -125,7 +128,10 @@ module HostInterface
                  di_read_req <= 0;
                  rdy         <= {1'b0, di_read_rdy };
                  di_read     <= rdwr;
-                 if(di_read) di_reg_addr <= di_reg_addr + 1;
+                 if(di_read) begin
+                    datao <= di_reg_datao;
+                    di_reg_addr <= di_reg_addr + 1;
+                 end
               end
            end
       
@@ -140,9 +146,11 @@ module HostInterface
                  tc       <= datai_reg;
                  tc_reset <= datai_reg;
               end
+              one_shot <= 0;
            end
       
            RDDATA: begin
+              datao      <= di_reg_datao;
               rdy        <= { 1'b0, di_read };
               di_write   <= 0;
               oe         <= 1; 
@@ -157,6 +165,7 @@ module HostInterface
                  di_read     <= 0;
               end
               if(di_read) di_reg_addr <= di_reg_addr + 1;
+              one_shot <= 0;
            end
            
            default: begin
