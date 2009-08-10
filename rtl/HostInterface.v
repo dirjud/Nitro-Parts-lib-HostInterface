@@ -1,177 +1,317 @@
+/* Author: Lane Brooks
+   Date: 8/8/2009
+ 
+   Slave fifo implementation of a read/write interface to the cypress FX2
+   part.
+ 
+   There are two modes of operation, read_mode and write_mode
+ 
+   read_mode: When 'di_read_mode' goes high, the 'di_term_addr', 'di_len',
+     outputs will be valid.  To host can cancel a read in the middle at
+     any time by sending 'di_read_mode' low.  The user must be able to
+     recover from such an event and be ready for the next read or write
+     operation.
+ 
+     Each word to be read will be preceeded with 'di_read_req' being
+     high.  The user feeds back 'di_read_rdy' and must hold it high
+     until the host responds with a 'di_read' pulse.  When this is
+     high, then the host will issue a 'di_read' and advance the
+     'di_reg_addr'.  If more bytes are to be transfered, 'di_read_req'
+     will go high.  You can tie 'di_read_rdy' high for any terminals
+     for maximal data rates if the terminal can retrieve data fast
+     enough.
+ 
+     ########################################################################
+     ########################    SLOW READ EXAMPLE    #######################
+     ########################################################################
+             ___ _______________________________________________________
+     di_len  ___X__0x2__________________________________________________
+                    ________________________________________________
+     di_read_mode _/                                                \___
+                    __                     __
+     di_read_req  _/  \___________________/  \__________________________
+                                _____________           _____
+     di_read_rdy  _____________/             \_________/     \__________
+                                           __              __
+     di_read      ________________________/  \____________/  \__________
+                                ______________          ______
+     di_reg_datao XXXXXXXXXXXXXX______________XXXXXXXXXX______XXXXXXXXXX
+                                    byte 0                1
+                  ________________________ _______________ _____________
+     di_reg_addr  ________________________X_______________X_____________
+                         addr 0                  1              2
 
+     In this example, the host reads two words.  The user receives the
+     'di_read_req' pulse and responsed when his data is available by
+     raising 'di_read_rdy'. He holds it high until the host pulses the
+     'di_read'.  Simultaneously, the host issues the second
+     'di_read_req' pulse, to which the user responds similarly.  The
+     host issues a final 'di_read' without an associated 'di_read_req'
+     to end the transfer.
+ 
+     ########################################################################
+     ########################    FAST READ EXAMPLE    #######################
+     ########################################################################
+              ___ _______________________________________________________
+     di_len   ___X__0x6__________________________________________________
+                      ________________________________________________
+     di_read_mode____/                                                \__
+                      _______________             _______
+     di_read_req ____/               \___________/       \_______________
+                  _______________________________________________________
+     di_read_rdy_/                                            
+                          _______________             _______
+     di_read      _______/               \___________/       \___________
+                  ___________ ___ ___ ___ _______________ ___ ___________
+     di_reg_datao ___________X___X___X___X_______________X___X___________
+                      byte 0   1   2   3               4   5
+                  _______ ___ ___ ___ _______________ ___ _______________
+     di_reg_addr  _______X___X___X___X_______________X___X_______________
+                  addr 0   1   2   3               4   5   6
 
-// NOTES:
-// - Need to make sure FX2 drives databus during IDLE
+     In this example, the host reads six words.  The user is holding 
+     'di_read_rdy' high, so the host will clock data out as fast it can.
+     The host throttles the read after the first four words by dropping 
+     'di_read_req/di_read'.
+
+     The 'di_reg_addr' changes with 'di_read', so the user can register
+     'di_reg_datao' if necessary. 
+ 
+             ___ _______________________________________________________
+     di_len  ___X__0x2__________________________________________________
+                       _________________________________________________
+     di_write_mode ___/
+                                ___                 ___
+     di_write      ____________/   \_______________/   \________________
+                   ________________             _______           ______
+     di_write_rdy                  \___________/       \_________/
+                   ____________ ___________________ ____________________
+     di_reg_datai  ____________X___________________X____________________
+                                      byte 0            byte 1
+
+ 
+             ___ _______________________________________________________
+     di_len  ___X__0x2__________________________________________________
+                       _________________________________________________
+     di_write_mode ___/
+                                ___     ___
+     di_write      ____________/   \___/   \____________________________
+                   _____________________________________________________
+     di_write_rdy                  
+                                          
+ 
+ 
+ 
+ */
+
 
 module HostInterface
   (
    input wire ifclk,
-   input wire [2:0] ctl,
-   input wire [3:0] state,
-   output reg [1:0] rdy,
-   inout wire [15:0] data,
-   
    input wire resetb,
 
-   output reg [15:0] di_term_addr,
-   output reg [15:0] di_reg_addr,
-   output reg [15:0] di_reg_datai,
-   input      [15:0] di_reg_datao,
+   input [2:0] fx2_flags,
+   output reg fx2_sloe_b,
+   output reg fx2_slrd_b,
+   output reg fx2_slwr_b,
+   output reg fx2_pktend_b,
+   output reg [1:0] fx2_fifo_addr,
+   inout [15:0] fx2_fd,
+   
+   output     [15:0] di_term_addr,
+   output reg [31:0] di_reg_addr,
+   output reg [31:0] di_len,
+
+   output reg        di_read_mode,
    output reg        di_read_req,
    output reg        di_read,
    input wire        di_read_rdy,
+   input      [15:0] di_reg_datao,
+
    output reg        di_write,
-   input wire        di_write_rdy
+   input wire        di_write_rdy,
+   output reg        di_write_mode,
+   output reg [15:0] di_reg_datai
    );
 
-   // states
-   parameter IDLE =        0;
-   parameter SETEP =       1;
-   parameter SETADDR =     2;
-   parameter SETRVAL =     3;
-   parameter RDDATA =      4;
-   parameter RESETRVAL =   5;
-   parameter GETRVAL =     6;
-   parameter RDTC    =     7;
-   parameter WRDATA =      8;
-   
-   
-   wire [15:0] datai;
-   reg [15:0] datao;
-   reg        oe;
-   reg [15:0] datai_reg;
-   reg [3:0]  state_reg;
-   reg [2:0]  ctl_reg;
-   wire rdwr = ctl_reg[1];
+   wire [31:0] transfer_len;
+   reg [2:0] flags;
+   wire  empty_b     = flags[0];
+   wire  full_b      = flags[1];
+   wire  cmd_start   = flags[2];
 
-   reg [15:0] tc;
-   reg [15:0] tc_reset;
-   reg one_shot;
-   
-   IOBuf iob[15:0] 
-     (.oe(oe),
-      .data(data),
-      .in(datai),
-      .out(datao)
-      );
-
+   reg [15:0] fd_in, fd_out;
+   reg [15:0] cmd_buf[0:7];
+   wire [15:0] fx2_fd_in =fx2_fd;
+   assign fx2_fd = (fx2_sloe_b) ? fd_out : 16'hZZZZ;
    always @(posedge ifclk or negedge resetb) begin
-      if (!resetb) begin
-         di_term_addr <= 0;
-         di_reg_addr  <= 0;
-         di_reg_datai <= 0;
-         tc           <= 0;
-         tc_reset     <= 0;
-         datao        <= 0;
-         rdy          <= 0;
-         di_write     <= 0;
-         di_read      <= 0;
-         oe           <= 0;
-         datai_reg    <= 0;
-         state_reg    <= 0;
-         ctl_reg      <= 0;
-         one_shot     <= 0;
-         di_read_req  <= 0;
-         
+      if(!resetb) begin
+         flags <= 0;
+         fd_in <= 0;
       end else begin
-         state_reg    <= state;
-         ctl_reg      <= ctl;
-         datao        <= di_reg_datao;
-         datai_reg    <= datai;
+         flags <= fx2_flags;
+         fd_in <= fx2_fd_in;
+      end
+   end
+   
+   parameter [1:0] WRITE_EP = 0;
+   parameter [1:0] READ_EP  = 2;
+   parameter 
+     IDLE          = 0,
+     RCV_CMD       = 1,
+     PROCESS_CMD   = 2;
+   reg [1:0] state;
+   reg [31:0] tcount;
+   wire [31:0] next_tcount = tcount + 1;
+   
+   parameter [15:0] READ_CMD = 16'hC301;
+   parameter [15:0] WRITE_CMD= 16'hC302;
+  
+   wire [15:0] cmd     = cmd_buf[0];
+   assign di_term_addr     = cmd_buf[1];
+   
+   
+   always @(posedge ifclk or negedge resetb) begin
+      if(!resetb) begin
+         state            <= IDLE;
+         di_read_mode     <= 0;
+         di_write_mode    <= 0;
+         di_write         <= 0;
+         di_read          <= 0;
+         di_read_req      <= 0;
+         tcount           <= 0;
+         di_reg_datai     <= 0;
          
-         case (state_reg)
-           SETEP: begin
-              rdy         <= 1;
-              di_write    <= 0;
-              di_read     <= 0;
-              di_read_req <= 0;
-              oe          <= 0;
-              if(rdwr) di_term_addr <= datai_reg;
-              one_shot <= 0;
-           end
-      
-           SETADDR: begin
-              rdy         <= 1;
-              di_write    <= 0;
-              di_read     <= 0;
-              di_read_req <= 0;
-              oe          <= 0;
-              if(rdwr) di_reg_addr <= datai_reg;
-              one_shot <= 0;
-           end
-      
-           SETRVAL: begin
-              rdy         <= {1'b0, di_write_rdy };
-              di_write    <= rdwr;
-              di_read     <= 0;
-              di_read_req <= 0;
-              oe          <= 0;
-              di_reg_datai<= datai_reg;
-              one_shot    <= 0;
-           end
-      
-           GETRVAL: begin
-              oe          <= 1;
-              di_write    <= 0;
+         fx2_sloe_b       <= 0; // FX2 drives the bus when reset
+         fx2_slrd_b       <= 1; // No read enable yet
+         fx2_slwr_b       <= 1; // No write enable
+         fx2_pktend_b     <= 1; // No write enable
+         fx2_fifo_addr    <= WRITE_EP;
 
-              if(!one_shot) begin
-                 di_read     <= 0;
-                 rdy         <= 0;
-                 if(di_read_rdy) begin
-                    di_read_req <= 1;
-                    one_shot    <= 1;
+         fd_out           <= 0;
+      end else begin
+         di_read_mode     <= (state == PROCESS_CMD) && (cmd == READ_CMD);
+         di_write_mode    <= (state == PROCESS_CMD) && (cmd == WRITE_CMD);
+
+         if(cmd_start) begin
+            state         <= RCV_CMD;
+            tcount        <= 0;
+            fx2_sloe_b    <= 0; 
+            fx2_slrd_b    <= 1; // No read enable yet
+            fx2_slwr_b    <= 1; // No write enable
+            fx2_pktend_b  <= 1; // No write enable
+            fx2_fifo_addr <= WRITE_EP;
+            tcount        <= 0;
+            
+         end else begin
+
+            case(state)
+              IDLE: begin
+                 fx2_sloe_b    <= 0; // FX2 drives the bus when idel
+                 fx2_slrd_b    <= 1; // No read enable yet
+                 fx2_slwr_b    <= 1; // No write enable
+                 fx2_pktend_b  <= 1; // No write enable
+                 fx2_fifo_addr <= WRITE_EP;
+                 tcount <= 0;
+              end
+              
+              RCV_CMD: begin
+                 if(fx2_slrd_b) begin
+                    if(empty_b) begin
+                       cmd_buf[tcount[2:0]] <= fd_in; // sample the input 
+                       tcount <= next_tcount;      // advance the cmd buf addr
+                       fx2_slrd_b <= 0;         // assert read enable
+                    end
                  end else begin
-                    di_read_req <= 0;
+                    fx2_slrd_b <= 1; // deassert read enable
+                    if(tcount[3:0] == 8) begin
+                       state <= PROCESS_CMD;
+                       tcount <= 0;
+                       di_reg_addr  <= { cmd_buf[3], cmd_buf[2] };
+                       di_len       <= { cmd_buf[5], cmd_buf[4] } >> 1;
+                    end
                  end
-              end else begin
-                 di_read_req <= 0;
-                 rdy         <= {1'b0, di_read_rdy };
-                 di_read     <= rdwr;
               end
-           end
-      
-           RDTC: begin
-              rdy         <= 1;
-              di_write    <= 0;
-              di_read     <= 0;
-              di_read_req <= 0;
-              oe          <= 0;
+            
+              PROCESS_CMD: begin
+                 
+                 case(cmd)
+                    READ_CMD: begin
+                       fx2_sloe_b     <= 1;     // We drive the bus
+                       fx2_fifo_addr  <= READ_EP;
+                       fx2_slwr_b     <= !di_read;
+                       if(di_read) begin
+                          fd_out      <= di_reg_datao;
+                       end
+                       
+                       if(!di_read_mode) begin // the first cycle of read_mode
+                          di_read_req <= 1;
+                          
+                       end else if(tcount >= di_len) begin // we're done
+                          state                <= IDLE;
+                          di_read              <= 0;
+                          di_read_req          <= 0;
+                          fx2_pktend_b         <= 0;
+                          
+                       end else begin
+                          if(full_b && di_read_rdy) begin
+                             di_read           <= 1;
+                             tcount            <= next_tcount;
+                             di_reg_addr       <= di_reg_addr + 1;
+                             di_read_req       <= (next_tcount < di_len);
+                          end else begin
+                             di_read_req       <= 0;
+                             di_read           <= 0;
+                          end
+                       end
+                    end
+                   
+                   WRITE_CMD: begin
+                      fx2_fifo_addr          <= WRITE_EP;
+                      if(di_write) begin
+                         di_reg_addr         <= di_reg_addr + 1;
+                      end
+                      
+                      if(!di_write_mode) begin
+                         fx2_sloe_b          <= 0; //  FX2 drives the bus
+                      end else if(tcount >= di_len) begin // we're done
 
-              if(rdwr) begin
-                 tc       <= datai_reg;
-                 tc_reset <= datai_reg;
+                         fx2_slrd_b 	    <= 1;
+                         di_write 	    <= 0;
+			 if(!di_write_rdy) begin
+			    // wait for last write to finish
+                         end else if(fx2_sloe_b==0) begin
+                            fx2_sloe_b 	    <= 1; // we drive bus to send ack
+                         end else if(fx2_slwr_b) begin
+                            fx2_slwr_b 	    <= 0; // send the ack work back
+                            fd_out 	    <= 16'hA50F;
+                         end else begin
+                            state 	    <= IDLE;
+                            fx2_slwr_b 	    <= 1;
+                         end
+                         
+                      end else begin
+                         if(fx2_slrd_b) begin
+                            if(empty_b && di_write_rdy) begin
+                               fx2_slrd_b   <= 0;       // assert read enable
+                               di_write     <= 1;
+                               di_reg_datai <= fd_in;   // sample the data
+                               tcount 	    <= next_tcount; // advance tcount
+                            end
+                         end else begin
+                            fx2_slrd_b 	    <= 1; // deassert read enable
+                            di_write 	    <= 0;
+                         end
+                      end
+                   end
+                   
+                   default: begin
+                      state <= IDLE;
+                   end
+                 endcase
               end
-              one_shot <= 0;
-           end
-      
-           RDDATA: begin
-              rdy        <= { 1'b0, di_read };
-              di_write   <= 0;
-              oe         <= 1; 
-         
-              if (!ctl_reg[2]) begin // new gpif
-                 di_read <= 0;
-                 tc      <= tc_reset;
-              end else if (rdwr && di_read_rdy && tc>0) begin
-                 di_read     <= 1;
-                 tc          <= tc - 1;
-              end else begin
-                 di_read     <= 0;
-              end
-              if(di_read) di_reg_addr <= di_reg_addr + 1;
-              one_shot <= 0;
-           end
-           
-           default: begin
-              rdy      <= 0;
-              di_write <= 0;
-              di_read  <= 0;
-              di_read_req<= 0;
-              oe       <= 0;
-              tc       <= 0;
-              one_shot <= 0;
-           end
-         endcase
+            endcase
+         end
       end
    end
 endmodule

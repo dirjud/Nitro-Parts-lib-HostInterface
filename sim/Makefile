@@ -1,15 +1,18 @@
+INC_PATHS = rtl_auto
 
-USERDEV_PATH=../userdev
-SIM_TOP=pcb.v
-OBJ_DIR=obj_dir
-SIM_FILES = ../rtl/HostInterface.v \
-		    ../rtl/IOBuf.v \
-			di/XEM3010EndPoint.v
-INCLUDE_PATHS=di			
+SIM_FILES = tb.v fx2.v ../rtl/HostInterface.v rtl_auto/FastTerminal.v rtl_auto/NeverReadReadyTerminal.v rtl_auto/SlowTerminal.v
 
-include ../userdev/sim.mk
+test: test.vcd
+
+test.vcd: Vtb.so test.py
+	nosetests -v test.py
 
 
-trace.vcd: Vpcb.so
-	python test.py
+CUSTOM_CPPFLAGS = -I ~/prj/nitro/drivers/python/include
 
+rtl_auto/%Terminal.v: terminals.py
+	mkdir -p rtl_auto
+	di -v $* -o rtl_auto terminals.py
+
+
+include verilator.mk
