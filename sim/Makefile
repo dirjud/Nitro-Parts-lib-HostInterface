@@ -8,7 +8,8 @@ test.vcd: Vtb.so test.py
 	nosetests -v test.py
 
 
-CUSTOM_CPPFLAGS = -I ~/prj/nitro/drivers/python/include
+CUSTOM_CPPFLAGS:=-I `python -c 'import os, nitro; print os.path.join ( os.path.split( nitro.__file__ )[0], "include" )'` -I$(CPPFLAGS)
+CUSTOM_LDFLAGS:="-L$(LD_LIBRARY_PATH)"
 
 rtl_auto/%Terminal.v: terminals.py
 	mkdir -p rtl_auto
