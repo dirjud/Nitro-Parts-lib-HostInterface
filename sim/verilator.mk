@@ -39,6 +39,12 @@ TOP_MODULE=tb
 VERILATOR_CPPFLAGS=-I ../ -fPIC -I`python -c 'import  distutils.sysconfig; print distutils.sysconfig.get_python_inc()'` -I`python -c 'import numpy; print \"/\".join(numpy.__file__.split(\"/\")[:-1])+\"/core/include\"'`
 VERILATOR_LDFLAGS=`python -c 'import distutils.sysconfig as x; print x.get_config_var(\"LIBS\"), x.get_config_var(\"BLDLIBRARY\")'` -shared -lnitro
 
+CUSTOM_LDFLAGS:=$(CUSTOM_LDFLAGS)
+ifdef LD_LIBRARY_PATH
+ LDPATHS=$(subst :, , $(LD_LIBRARY_PATH)) 
+ CUSTOM_LDFLAGS+=$(foreach p, $(LDPATHS), -L$(p) )
+endif
+
 
 # Check for and include local Makefiles for any project specific
 # targets check for a local config file
