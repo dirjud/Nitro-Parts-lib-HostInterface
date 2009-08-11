@@ -1,6 +1,5 @@
 #include <Python.h>
 #include "python_nitro.h"
-#include "pynitro/device.h"
 
 #include "Vtb.h"
 #include "Vtb_tb.h"
@@ -104,17 +103,12 @@ static PyObject *time(PyObject *self, PyObject *args) {
   return PyInt_FromLong(main_time);
 }
 
-static PyObject *set_dev(PyObject *self, PyObject *args) {
+static PyObject *get_dev(PyObject *self, PyObject* args ) {
   if(!tb) {
     PyErr_SetString(PyExc_Exception, "You must call init() prior to this method");
     return NULL;
   }    
-  PyObject *fx2;
-  if (!PyArg_ParseTuple(args, "O", &fx2)) {
-    return NULL;
-  }
-  ((nitro_DeviceObject *)fx2)->nitro_device = tb->v->fx2->fx2_dev;
-  Py_RETURN_NONE;
+  return nitro_from_datatype ( *(tb->v->fx2->fx2_dev) );
 }
 
 static PyObject *adv(PyObject *self, PyObject *args) {
@@ -152,7 +146,7 @@ static PyMethodDef Vtb_methods[] = {
   {"time", time, METH_NOARGS, "Gets the current time of the simulation." },
   {"adv",  adv,  METH_VARARGS, "Advances sim x number of clk cycles." },
   {"end",  end,  METH_NOARGS, "Ends simulation & deletes all sim objects." },
-  {"set_dev", set_dev, METH_VARARGS, "Pass in an empty nitro.Device and this turns it into an FX2 verilator dev" },
+  {"get_dev", get_dev, METH_NOARGS, "get the device used in the simulation." },
   {NULL}  /* Sentinel */
 };
 

@@ -5,11 +5,12 @@
 import nitro
 import Vtb
 import numpy
-dev=nitro.Device()
+dev = None
 
 def setup():
+    global dev
     Vtb.init("test.vcd")
-    Vtb.set_dev(dev)
+    dev=Vtb.get_dev()
     
     d = {}
     execfile("terminals.py", d)
