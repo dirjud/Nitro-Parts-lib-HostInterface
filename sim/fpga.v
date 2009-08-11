@@ -1,14 +1,14 @@
 
 module fpga 
 (
-   input wire ifclk,
+   input ifclk,
 
    input [2:0] fx2_flags,
-   output reg fx2_sloe_b,
-   output reg fx2_slrd_b,
-   output reg fx2_slwr_b,
-   output reg fx2_pktend_b,
-   output reg [1:0] fx2_fifo_addr,
+   output fx2_sloe_b,
+   output fx2_slrd_b,
+   output fx2_slwr_b,
+   output fx2_pktend_b,
+   output [1:0] fx2_fifo_addr,
    inout [15:0] fx2_fd
 
 );
