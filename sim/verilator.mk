@@ -33,7 +33,7 @@
 VERILATOR=verilator
 
 # verilator cpp file
-VERILATOR_CPP_FILE=tb.cpp
+VERILATOR_CPP_FILE=$(SIM_DIR)tb.cpp
 TOP_MODULE=tb
 
 VERILATOR_CPPFLAGS=-I ../ -fPIC -I`python -c 'import  distutils.sysconfig; print distutils.sysconfig.get_python_inc()'` -I`python -c 'import numpy; print \"/\".join(numpy.__file__.split(\"/\")[:-1])+\"/core/include\"'`
