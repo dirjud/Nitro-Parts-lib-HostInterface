@@ -8,8 +8,12 @@ test.vcd: Vtb.so test.py
 	nosetests -v test.py
 
 
-CUSTOM_CPPFLAGS:=-I `python -c 'import os, nitro; print os.path.join ( os.path.split( nitro.__file__ )[0], "include" )'` -I$(CPPFLAGS)
-CUSTOM_LDFLAGS:="-L$(LD_LIBRARY_PATH)"
+CUSTOM_CPPFLAGS:=-I `python -c 'import os, nitro; print os.path.join ( os.path.split( nitro.__file__ )[0], "include" )'` $(CPPFLAGS)
+CUSTOM_LDFLAGS:=$(CUSTOM_LDFLAGS)
+ifdef LD_LIBRARY_PATH
+ LDPATHS=$(subst :, , $(LD_LIBRARY_PATH)) 
+ CUSTOM_LDFLAGS+=$(foreach p, $(LDPATHS), -L$(p) )
+endif
 
 rtl_auto/%Terminal.v: terminals.py
 	mkdir -p rtl_auto
