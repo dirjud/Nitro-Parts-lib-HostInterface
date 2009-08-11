@@ -1,6 +1,6 @@
 INC_PATHS = rtl_auto
 
-SIM_FILES = tb.v fx2.v ../rtl/HostInterface.v rtl_auto/FastTerminal.v rtl_auto/NeverReadReadyTerminal.v rtl_auto/SlowTerminal.v
+SIM_FILES = tb.v fx2.v fpga.v ../rtl/HostInterface.v rtl_auto/FastTerminal.v rtl_auto/NeverReadReadyTerminal.v rtl_auto/SlowTerminal.v
 
 test: test.vcd
 
