@@ -79,6 +79,7 @@ static PyObject *init(PyObject *self, PyObject *args) {
   tb->resetb = 0;
   advance_clk(2);
   tb->resetb = 1;
+  advance_clk(50);
 
   Py_RETURN_NONE; 
 }

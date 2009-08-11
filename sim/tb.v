@@ -51,7 +51,6 @@ fx2 fx2
    .PA                                  (PA[7:0]));
 
 fpga fpga (
-   .resetb(resetb),
    .ifclk                               (ifclk),
    .fx2_sloe_b                          (fx2_sloe_b),
    .fx2_slrd_b                          (fx2_slrd_b),

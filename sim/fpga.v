@@ -2,7 +2,6 @@
 module fpga 
 (
    input wire ifclk,
-   input wire resetb,
 
    input [2:0] fx2_flags,
    output reg fx2_sloe_b,
@@ -26,6 +25,15 @@ wire                 di_write_mode;          // From HostInterface2 of HostInter
 
 reg [15:0] di_reg_datao;
 reg di_read_rdy, di_write_rdy;
+
+
+reg [4:0] reset_cnt;
+wire resetb = &reset_cnt;
+always @(posedge ifclk) begin
+    if (!resetb) begin
+        reset_cnt <= reset_cnt + 1;
+    end
+end
 
 HostInterface HostInterface
   (
