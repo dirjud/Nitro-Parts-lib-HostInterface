@@ -100,7 +100,15 @@ extern unsigned int main_time;
 
 class FX2Device : public Device {
 private:
-  void send_cmd(int cmd, int term, int reg, int len) {
+
+   
+    void send_cmd(int cmd, int term, int reg, int len) {
+
+    *flagc  = 1;
+    advance_clk(50);
+    *flagc  = 0;
+    advance_clk(20);
+
     wbuf[0] = 0xC300 | (cmd & 0xFF);
     wbuf[1] = term;
     wbuf[2] = reg & 0xFFFF;
@@ -114,10 +122,8 @@ private:
     *wptr   = 0;
     *rptr   = 0;
     *rdone  = 0;
-    *flagc  = 1;
-    advance_clk(2);
-    *flagc  = 0;
 
+    advance_clk(20);
   }
 
   uint32_t get_timeout_time(uint32_t timeout) {
@@ -178,7 +184,7 @@ protected:
     while(*empty_b) {
       advance_clk(1);
       if(main_time >= timeout_time) {
-        throw Exception(-1, "Timed out");
+        throw Exception(-1, "Timed out sending command.");
       }
     }
 

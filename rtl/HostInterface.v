@@ -157,7 +157,7 @@ module HostInterface
    parameter [1:0] WRITE_EP = 0;
    parameter [1:0] READ_EP  = 2;
    parameter 
-     IDLE          = 0,
+     IDLE          = 3,
      RCV_CMD       = 1,
      PROCESS_CMD   = 2;
    reg [1:0] state;
@@ -169,7 +169,9 @@ module HostInterface
   
    wire [15:0] cmd     = cmd_buf[0];
    assign di_term_addr     = cmd_buf[1];
-   
+
+   reg wait_buf;
+   wire wait_ok = &wait_buf;
    
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
@@ -189,6 +191,7 @@ module HostInterface
          fx2_fifo_addr    <= WRITE_EP;
 
          fd_out           <= 0;
+         wait_buf         <= 0;
       end else begin
          di_read_mode     <= (state == PROCESS_CMD) && (cmd == READ_CMD);
          di_write_mode    <= (state == PROCESS_CMD) && (cmd == WRITE_CMD);
@@ -216,14 +219,19 @@ module HostInterface
               end
               
               RCV_CMD: begin
+
                  if(fx2_slrd_b) begin
-                    if(empty_b) begin
-                       cmd_buf[tcount[2:0]] <= fd_in; // sample the input 
+                    if (!wait_ok) begin
+                        wait_buf <= wait_buf + 1;
+                    end
+                    if(empty_b && wait_ok) begin
+                       cmd_buf[tcount[2:0]] <= fd_in; //fd_in; // sample the input 
                        tcount <= next_tcount;      // advance the cmd buf addr
                        fx2_slrd_b <= 0;         // assert read enable
                     end
                  end else begin
                     fx2_slrd_b <= 1; // deassert read enable
+                    wait_buf <= 0;
                     if(tcount[3:0] == 8) begin
                        state <= PROCESS_CMD;
                        tcount <= 0;
@@ -248,17 +256,25 @@ module HostInterface
                           di_read_req <= 1;
                           
                        end else if(tcount >= di_len) begin // we're done
-                          state                <= IDLE;
                           di_read              <= 0;
                           di_read_req          <= 0;
-                          fx2_pktend_b         <= 0;
+                          if (!fx2_slwr_b) begin // wait to send pktend until after slwr_b 
+                             state                <= IDLE;
+                             fx2_pktend_b         <= 0;
+                         end
                           
                        end else begin
-                          if(full_b && di_read_rdy) begin
+
+                          if (!wait_ok) begin
+                            wait_buf <= wait_buf + 1;
+                          end
+
+                          if(full_b && di_read_rdy && wait_ok) begin
                              di_read           <= 1;
                              tcount            <= next_tcount;
                              di_reg_addr       <= di_reg_addr + 1;
                              di_read_req       <= (next_tcount < di_len);
+                             wait_buf <= 0;
                           end else begin
                              di_read_req       <= 0;
                              di_read           <= 0;
@@ -267,19 +283,20 @@ module HostInterface
                     end
                    
                    WRITE_CMD: begin
-                      fx2_fifo_addr          <= WRITE_EP;
                       if(di_write) begin
                          di_reg_addr         <= di_reg_addr + 1;
                       end
                       
                       if(!di_write_mode) begin
+                         fx2_fifo_addr          <= WRITE_EP;
                          fx2_sloe_b          <= 0; //  FX2 drives the bus
                       end else if(tcount >= di_len) begin // we're done
+                         fx2_fifo_addr          <= READ_EP;
 
                          fx2_slrd_b 	    <= 1;
                          di_write 	    <= 0;
-			 if(!di_write_rdy) begin
-			    // wait for last write to finish
+            		     if(!di_write_rdy) begin
+			                // wait for last write to finish
                          end else if(fx2_sloe_b==0) begin
                             fx2_sloe_b 	    <= 1; // we drive bus to send ack
                          end else if(fx2_slwr_b) begin
@@ -287,10 +304,12 @@ module HostInterface
                             fd_out 	    <= 16'hA50F;
                          end else begin
                             state 	    <= IDLE;
+                            fx2_pktend_b <= 0; // commit the short packet.
                             fx2_slwr_b 	    <= 1;
                          end
                          
                       end else begin
+                         fx2_fifo_addr <= WRITE_EP;
                          if(fx2_slrd_b) begin
                             if(empty_b && di_write_rdy) begin
                                fx2_slrd_b   <= 0;       // assert read enable
