@@ -291,21 +291,20 @@ module HostInterface
                          fx2_fifo_addr          <= WRITE_EP;
                          fx2_sloe_b          <= 0; //  FX2 drives the bus
                       end else if(tcount >= di_len) begin // we're done
-                         fx2_fifo_addr          <= READ_EP;
-
-                         fx2_slrd_b 	    <= 1;
-                         di_write 	    <= 0;
-            		     if(!di_write_rdy) begin
-			                // wait for last write to finish
+                         fx2_slrd_b         <= 1;
+                         di_write           <= 0;
+                         if(!di_write_rdy) begin
+                                        // wait for last write to finish
                          end else if(fx2_sloe_b==0) begin
-                            fx2_sloe_b 	    <= 1; // we drive bus to send ack
+                            fx2_fifo_addr   <= READ_EP;
+                            fx2_sloe_b      <= 1; // we drive bus to send ack
                          end else if(fx2_slwr_b) begin
-                            fx2_slwr_b 	    <= 0; // send the ack work back
-                            fd_out 	    <= 16'hA50F;
+                            fx2_slwr_b      <= 0; // send the ack work back
+                            fd_out          <= 16'hA50F;
                          end else begin
-                            state 	    <= IDLE;
+                            state           <= IDLE;
                             fx2_pktend_b <= 0; // commit the short packet.
-                            fx2_slwr_b 	    <= 1;
+                            fx2_slwr_b      <= 1;
                          end
                          
                       end else begin
@@ -315,11 +314,11 @@ module HostInterface
                                fx2_slrd_b   <= 0;       // assert read enable
                                di_write     <= 1;
                                di_reg_datai <= fd_in;   // sample the data
-                               tcount 	    <= next_tcount; // advance tcount
+                               tcount       <= next_tcount; // advance tcount
                             end
                          end else begin
-                            fx2_slrd_b 	    <= 1; // deassert read enable
-                            di_write 	    <= 0;
+                            fx2_slrd_b      <= 1; // deassert read enable
+                            di_write        <= 0;
                          end
                       end
                    end

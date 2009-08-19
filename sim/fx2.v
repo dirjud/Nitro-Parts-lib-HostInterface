@@ -28,8 +28,8 @@ module fx2
 
    wire       pktend_b  = PA[6];
    wire [1:0] fifo_addr = PA[5:4];
-   wire       slrd_b    = RDY[0];
-   wire       slwr_b    = RDY[1];
+   wire       slrd_b    = RDY[0] | (fifo_addr != 0);
+   wire       slwr_b    = RDY[1] | (fifo_addr != 2);
    wire       clk       = XTALIN;
 
 
@@ -165,7 +165,7 @@ protected:
       }
       advance_clk(1);
       if(main_time >= timeout_time) {
-        throw Exception(-1, "Timed out");
+        throw Exception(USB_COMM, "Timed out");
       }
     }
   }
@@ -184,7 +184,7 @@ protected:
     while(*empty_b) {
       advance_clk(1);
       if(main_time >= timeout_time) {
-        throw Exception(-1, "Timed out sending command.");
+        throw Exception(USB_COMM, "Timed out sending command.");
       }
     }
 
@@ -206,7 +206,7 @@ protected:
       }
       advance_clk(1);
       if(main_time >= timeout_time) {
-        throw Exception(-3, "Timed out waiting transfer");
+        throw Exception(USB_COMM, "Timed out waiting transfer");
       }
     }
 
@@ -214,14 +214,14 @@ protected:
     while(*rptr == 0) {
       advance_clk(1);
       if(main_time >= timeout_time) {
-        throw Exception(-1, "Timed out waiting for ack");
+        throw Exception(USB_COMM, "Timed out waiting for ack");
       }
     }
     // check ack
     *rptr = 0;
     //printf("ack = 0x%x\n", rbuf[0]);
     if(rbuf[0] != 0xA50F) {
-      throw Exception(-2, "Unexpected ack code returns");
+      throw Exception(USB_COMM, "Unexpected ack code returns");
     }
     advance_clk(3);
 
