@@ -25,7 +25,7 @@ wire                 di_write_mode;          // From HostInterface2 of HostInter
 
 reg [15:0] di_reg_datao;
 reg di_read_rdy, di_write_rdy;
-
+reg [15:0] di_transfer_status;
 
 reg [4:0] reset_cnt;
 wire resetb = &reset_cnt;
@@ -48,21 +48,21 @@ HostInterface HostInterface
    .fx2_fifo_addr                       (fx2_fifo_addr[1:0]),
    .di_term_addr                        (di_term_addr[15:0]),
    .di_reg_addr                         (di_reg_addr[31:0]),
-   .di_reg_datai                        (di_reg_datai[15:0]),
    .di_len                              (di_len[31:0]),
+   .di_read_mode                        (di_read_mode),
    .di_read_req                         (di_read_req),
    .di_read                             (di_read),
    .di_write                            (di_write),
-   .di_read_mode                        (di_read_mode),
    .di_write_mode                       (di_write_mode),
-   // Inouts
+   .di_reg_datai                        (di_reg_datai[15:0]),
    // Inputs
    .ifclk                               (ifclk),
-   .fx2_flags                           (fx2_flags[2:0]),
    .resetb                              (resetb),
-   .di_reg_datao                        (di_reg_datao[15:0]),
+   .fx2_flags                           (fx2_flags[2:0]),
    .di_read_rdy                         (di_read_rdy),
-   .di_write_rdy                        (di_write_rdy));
+   .di_reg_datao                        (di_reg_datao[15:0]),
+   .di_write_rdy                        (di_write_rdy),
+   .di_transfer_status                  (di_transfer_status[15:0]));
 
 `include "FastTerminalDefs.v"
 `include "NeverReadReadyTerminalDefs.v"
@@ -77,15 +77,17 @@ HostInterface HostInterface
          di_reg_datao     = fast_reg_datao;
          di_read_rdy      = 1;  // always ready on other registers
          di_write_rdy     = 1;
+         di_transfer_status = {15'b0, (di_reg_addr > 161) };
       end else if(di_term_addr == `EP_NeverReadReady) begin
          di_reg_datao     = 16'h2222;
          di_read_rdy      = 0;
          di_write_rdy     = 1;
+         di_transfer_status=0;
       end else if(di_term_addr == `EP_Slow) begin
          di_reg_datao     = slow_reg_datao;
          di_read_rdy      = slow_read_rdy;
          di_write_rdy     = slow_write_rdy;
-         
+         di_transfer_status=0;
       end
    end
 
@@ -117,3 +119,6 @@ HostInterface HostInterface
 
 
 endmodule
+// Local Variables:
+// verilog-library-flags:("-y ../rtl")
+// End:

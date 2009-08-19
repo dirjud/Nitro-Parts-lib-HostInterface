@@ -150,24 +150,53 @@ protected:
     advance_clk(1);
 
     size_t rx_count = 0;
-    
-    while(rx_count < length) {
+    uint16 *rx_data = (uint16 *) malloc(length + 8);
+
+    while(rx_count < length/2 + 4) {
       if(*rdone || (*full_b==0)) {
         advance_clk(10);
-        for(int i=0; i<*rptr; i++) {
-          data[rx_count] = rbuf[i] & 0xFF;
-          ++rx_count;
-          data[rx_count] = (rbuf[i] >> 8) & 0xFF;
-          ++rx_count;
+        for(int pos=0; pos<*rptr; pos++) {
+          rx_data[rx_count] = rbuf[pos];
+          rx_count++;
         }
         *rdone = 0;
         *rptr  = 0;
       }
       advance_clk(1);
       if(main_time >= timeout_time) {
+        free(rx_data);                         
         throw Exception(USB_COMM, "Timed out");
       }
     }
+    // copy rx_data into data buffer and separate out the training ack
+    uint16 checksum=0;
+    for(int pos=0; pos<length/2; pos++) {
+       ((uint16*)data)[pos] = rx_data[pos];
+       checksum += rx_data[pos];       
+    }
+
+    uint16 *ack_buf = rx_data + length/2;
+    char msg[256];
+    if(ack_buf[0] != 0xA50F) {
+      free(rx_data);                           
+      throw Exception(USB_COMM, "Unexpected ack code returns");
+    }
+    // check checksum
+    checksum = checksum & 0xFFFF;
+    if(ack_buf[1] != checksum) {
+      free(rx_data);                           
+      sprintf(msg, "Checksum mismatch: 0x%04x/0x%04x", ack_buf[1], checksum);
+      throw Exception(USB_COMM, msg);
+    }
+    // check status word
+    if(ack_buf[2] != 0) {
+      free(rx_data);                           
+      sprintf(msg, "Non-zero ACK status 0x%x (%d) returned.", ack_buf[2], ack_buf[2]);
+      throw Exception(USB_COMM, msg);
+    }
+
+    advance_clk(1);
+    free(rx_data);                             
   }
 
 
@@ -178,6 +207,7 @@ protected:
 
   void _write( uint32 terminal_addr, uint32 reg_addr, const uint8* data, size_t length, uint32 timeout ) {
     uint32_t timeout_time = get_timeout_time(timeout);
+    unsigned int checksum = 0;
     send_cmd(WRITE_CMD, terminal_addr, reg_addr, length);
     advance_clk(1);
     // wait for the command buffer to empty
@@ -197,6 +227,7 @@ protected:
         int i;
         for(i=0; (i<256) && (tx_count<length); i++) {
           wbuf[i] = data[tx_count] + (data[tx_count + 1] << 8);
+          checksum += wbuf[i];                                       
           //printf("wbuf[%d]=0x%x\n", i, wbuf[i]);
           tx_count += 2;
         }
@@ -211,7 +242,7 @@ protected:
     }
 
     // wait for ack
-    while(*rptr == 0) {
+    while(*rptr < 4) {
       advance_clk(1);
       if(main_time >= timeout_time) {
         throw Exception(USB_COMM, "Timed out waiting for ack");
@@ -219,10 +250,23 @@ protected:
     }
     // check ack
     *rptr = 0;
-    //printf("ack = 0x%x\n", rbuf[0]);
+
+    char msg[256];
     if(rbuf[0] != 0xA50F) {
       throw Exception(USB_COMM, "Unexpected ack code returns");
     }
+    // check checksum
+    checksum = checksum & 0xFFFF;
+    if(rbuf[1] != checksum) {
+      sprintf(msg, "Checksum mismatch: 0x%04x/0x%04x", rbuf[1], checksum);
+      throw Exception(USB_COMM, msg);
+    }
+    // check status word
+    if(rbuf[2] != 0) {
+      sprintf(msg, "Non-zero ACK status 0x%x (%d) returned.", rbuf[2], rbuf[2]);
+      throw Exception(USB_COMM, msg);
+    }
+
     advance_clk(3);
 
   }

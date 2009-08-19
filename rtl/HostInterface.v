@@ -131,7 +131,8 @@ module HostInterface
    output reg        di_write,
    input wire        di_write_rdy,
    output reg        di_write_mode,
-   output reg [15:0] di_reg_datai
+   output reg [15:0] di_reg_datai,
+   input [15:0]      di_transfer_status
    );
 
    wire [31:0] transfer_len;
@@ -157,9 +158,10 @@ module HostInterface
    parameter [1:0] WRITE_EP = 0;
    parameter [1:0] READ_EP  = 2;
    parameter 
-     IDLE          = 3,
+     IDLE          = 0,
      RCV_CMD       = 1,
-     PROCESS_CMD   = 2;
+     PROCESS_CMD   = 2,
+     SEND_ACK      = 3;
    reg [1:0] state;
    reg [31:0] tcount;
    wire [31:0] next_tcount = tcount + 1;
@@ -169,7 +171,8 @@ module HostInterface
   
    wire [15:0] cmd     = cmd_buf[0];
    assign di_term_addr     = cmd_buf[1];
-
+   reg [15:0] checksum, status;
+   
    reg wait_buf;
    wire wait_ok = &wait_buf;
    
@@ -192,10 +195,13 @@ module HostInterface
 
          fd_out           <= 0;
          wait_buf         <= 0;
+         checksum         <= 0;
+         status           <= 0;
       end else begin
          di_read_mode     <= (state == PROCESS_CMD) && (cmd == READ_CMD);
          di_write_mode    <= (state == PROCESS_CMD) && (cmd == WRITE_CMD);
-
+         status           <= di_transfer_status;
+         
          if(cmd_start) begin
             state         <= RCV_CMD;
             tcount        <= 0;
@@ -205,6 +211,7 @@ module HostInterface
             fx2_pktend_b  <= 1; // No write enable
             fx2_fifo_addr <= WRITE_EP;
             tcount        <= 0;
+            checksum      <= 0;
             
          end else begin
 
@@ -216,6 +223,7 @@ module HostInterface
                  fx2_pktend_b  <= 1; // No write enable
                  fx2_fifo_addr <= WRITE_EP;
                  tcount <= 0;
+                 checksum      <= 0;
               end
               
               RCV_CMD: begin
@@ -225,7 +233,7 @@ module HostInterface
                         wait_buf <= wait_buf + 1;
                     end
                     if(empty_b && wait_ok) begin
-                       cmd_buf[tcount[2:0]] <= fd_in; //fd_in; // sample the input 
+                       cmd_buf[tcount[2:0]] <= fd_in; // sample the input 
                        tcount <= next_tcount;      // advance the cmd buf addr
                        fx2_slrd_b <= 0;         // assert read enable
                     end
@@ -241,6 +249,28 @@ module HostInterface
                  end
               end
             
+              SEND_ACK: begin // tcount should be zero upon entry
+                 fx2_fifo_addr   <= READ_EP;
+                 if(fx2_sloe_b==0) begin
+                    fx2_sloe_b      <= 1; // we drive bus to send ack
+                 end else if(fx2_slwr_b) begin
+                    fx2_slwr_b      <= 0; // send the ack packet back
+                    tcount          <= tcount + 1;
+                    case(tcount)
+                      0: fd_out          <= 16'hA50F;
+                      1: fd_out          <= checksum;
+                      2: fd_out          <= status;
+                      default:fd_out     <= tcount[15:0];
+                    endcase
+                 end else begin
+                    fx2_slwr_b      <= 1;
+                    if(tcount >= 4) begin
+                       state           <= IDLE;
+                       fx2_pktend_b <= 0; // commit the short packet.
+                    end
+                 end
+              end
+
               PROCESS_CMD: begin
                  
                  case(cmd)
@@ -250,6 +280,7 @@ module HostInterface
                        fx2_slwr_b     <= !di_read;
                        if(di_read) begin
                           fd_out      <= di_reg_datao;
+                          checksum    <= checksum + di_reg_datao;//calc checksum
                        end
                        
                        if(!di_read_mode) begin // the first cycle of read_mode
@@ -259,8 +290,8 @@ module HostInterface
                           di_read              <= 0;
                           di_read_req          <= 0;
                           if (!fx2_slwr_b) begin // wait to send pktend until after slwr_b 
-                             state                <= IDLE;
-                             fx2_pktend_b         <= 0;
+                             state <= SEND_ACK;
+                             tcount <= 0;
                          end
                           
                        end else begin
@@ -293,18 +324,9 @@ module HostInterface
                       end else if(tcount >= di_len) begin // we're done
                          fx2_slrd_b         <= 1;
                          di_write           <= 0;
-                         if(!di_write_rdy) begin
-                                        // wait for last write to finish
-                         end else if(fx2_sloe_b==0) begin
-                            fx2_fifo_addr   <= READ_EP;
-                            fx2_sloe_b      <= 1; // we drive bus to send ack
-                         end else if(fx2_slwr_b) begin
-                            fx2_slwr_b      <= 0; // send the ack work back
-                            fd_out          <= 16'hA50F;
-                         end else begin
-                            state           <= IDLE;
-                            fx2_pktend_b <= 0; // commit the short packet.
-                            fx2_slwr_b      <= 1;
+                         if(di_write_rdy) begin// wait for last write to finish
+                            tcount <= 0;
+                            state <= SEND_ACK;
                          end
                          
                       end else begin
@@ -314,6 +336,7 @@ module HostInterface
                                fx2_slrd_b   <= 0;       // assert read enable
                                di_write     <= 1;
                                di_reg_datai <= fd_in;   // sample the data
+                               checksum     <= checksum + fd_in; //calc checksum
                                tcount       <= next_tcount; // advance tcount
                             end
                          end else begin

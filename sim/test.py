@@ -17,6 +17,23 @@ def setup():
     dev.set_tree(d["di"])
 
 
+def test_transfer_status():
+    """Transfer Status Test
+    """
+    try:
+        dev.set("Fast", 200, 0)
+        assert(False, "Transfer Status") # previous statement should have failed
+    except:
+        pass
+
+    try:
+        x = "\x00"  * 10
+        dev.read("Fast", 200, x)
+        assert(False, "Transfer Status") # previous statement should have failed
+    except:
+        pass
+
+
 def test_back_to_back_set():
     """Back-to-Back Set Test
     
@@ -25,7 +42,7 @@ def test_back_to_back_set():
     """
 
     def test(term, reg):
-        xi = numpy.random.randint(low=0x0000, high=0x10000, size=[128]).astype(numpy.uint16)
+        xi = numpy.random.randint(low=0x0000, high=0x10000, size=[160]).astype(numpy.uint16)
         for i,x in enumerate(xi):
             dev.set(term, reg + "[%d]"%i, x)
 
@@ -73,7 +90,7 @@ def test_write_read():
     Writes a random sequence and then reads it back to verify
     """
     def test(term, reg):
-        xi = numpy.random.randint(low=0x0000, high=0x10000, size=[128]).astype(numpy.uint16)
+        xi = numpy.random.randint(low=0x0000, high=0x10000, size=[160]).astype(numpy.uint16)
         dev.write(term, reg, xi)
         xo = numpy.zeros_like(xi)
         dev.read(term, reg, xo)
