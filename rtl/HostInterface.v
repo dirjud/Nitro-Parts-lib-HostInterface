@@ -289,10 +289,14 @@ module HostInterface
                        end else if(tcount >= di_len) begin // we're done
                           di_read              <= 0;
                           di_read_req          <= 0;
-                          if (!fx2_slwr_b) begin // wait to send pktend until after slwr_b 
-                             state <= SEND_ACK;
+                          if (!fx2_slwr_b) begin // send pktend after slwr_b 
+			     fx2_slwr_b   <= 1;
+			     fx2_pktend_b <= 0; // commit the packet.
+                          end else if(!fx2_pktend_b) begin
+			     fx2_pktend_b <= 1;
                              tcount <= 0;
-                         end
+			     state  <= SEND_ACK;
+			  end
                           
                        end else begin
 
