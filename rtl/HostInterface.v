@@ -293,14 +293,14 @@ module HostInterface
                           di_read              <= 0;
                           di_read_req          <= 0;
 
-                          if (!fx2_slwr_b) begin // send pktend after slwr_b 
-			     fx2_slwr_b   <= 1;
-                             if (|tcount[7:0]) begin // check if this transfer is a multiple of 256.  If so, we do not send the pckend signal
-				fx2_pktend_b <= 0; // commit the short packet.
-			     end else begin
-				tcount <= 0;
-				state  <= SEND_ACK; // no packent necessary
-			     end
+                          if (!fx2_slwr_b && full_b) begin //send pktend after write completes and fifo is not full
+//                             if (|tcount[7:0]) begin // check if this transfer is a multiple of 256.  If so, we do not send the pckend signal
+//				fx2_pktend_b <= 0; // commit the short packet.
+//			     end else begin
+//				tcount <= 0;
+//				state  <= SEND_ACK; // no packent necessary
+//			     end
+			     fx2_pktend_b <= 0;
                           end else if(!fx2_pktend_b) begin
 			     fx2_pktend_b <= 1;
                              tcount <= 0;
@@ -309,16 +309,11 @@ module HostInterface
 
                        end else begin
 
-                          if (!wait_ok) begin
-                            wait_buf <= wait_buf + 1;
-                          end
-
-                          if(full_b && di_read_rdy && wait_ok) begin
+                          if(full_b && di_read_rdy && !di_read) begin
                              di_read           <= 1;
                              tcount            <= next_tcount;
                              di_reg_addr       <= di_reg_addr + 1;
                              di_read_req       <= (next_tcount < di_len);
-                             wait_buf <= 0;
                           end else begin
                              di_read_req       <= 0;
                              di_read           <= 0;
