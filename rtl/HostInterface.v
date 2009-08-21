@@ -308,8 +308,8 @@ module HostInterface
 
                        end else begin
 
-                          //if(full_b && di_read_rdy && !di_read) begin
-                          if(full_b && di_read_rdy) begin
+                          if(full_b && di_read_rdy && !di_read) begin
+                          //if(full_b && di_read_rdy) begin
                              di_read           <= 1;
                              tcount            <= next_tcount;
                              di_reg_addr       <= di_reg_addr + 1;
