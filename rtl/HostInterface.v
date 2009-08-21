@@ -173,9 +173,6 @@ module HostInterface
    assign di_term_addr     = cmd_buf[1];
    reg [15:0] checksum, status;
    
-   reg wait_buf;
-   wire wait_ok = &wait_buf;
-
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
          state            <= IDLE;
@@ -194,7 +191,6 @@ module HostInterface
          fx2_fifo_addr    <= WRITE_EP;
 
          fd_out           <= 0;
-         wait_buf         <= 0;
          checksum         <= 0;
          status           <= 0;
       end else begin
@@ -229,19 +225,15 @@ module HostInterface
               RCV_CMD: begin
 
                  if(fx2_slrd_b) begin
-                    if (!wait_ok) begin
-                        wait_buf <= wait_buf + 1;
-                    end
-                    if(empty_b && wait_ok) begin
+                    if(empty_b) begin
                        cmd_buf[tcount[2:0]] <= fd_in; // sample the input 
                        tcount <= next_tcount;      // advance the cmd buf addr
                        fx2_slrd_b <= 0;         // assert read enable
                     end
                  end else begin
                     fx2_slrd_b <= 1; // deassert read enable
-                    wait_buf <= 0;
                     if(tcount[3:0] == 8) begin
-                       state <= PROCESS_CMD;
+                       state  <= PROCESS_CMD;
                        tcount <= 0;
                        di_reg_addr  <= { cmd_buf[3], cmd_buf[2] };
                        di_len       <= { cmd_buf[5], cmd_buf[4] } >> 1;
