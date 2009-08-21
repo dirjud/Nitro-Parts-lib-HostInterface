@@ -340,21 +340,28 @@ module HostInterface
                       end else begin
                          fx2_fifo_addr <= WRITE_EP;
                          if(fx2_slrd_b) begin
-                            if (!wait_ok) begin
-                                wait_buf <= wait_buf + 1;
-                            end
-                            if(empty_b && di_write_rdy && wait_ok) begin
+                            if(empty_b && di_write_rdy) begin
                                fx2_slrd_b   <= 0;       // assert read enable
-                               wait_buf     <= 0;
-                               di_write     <= 1;
-                               di_reg_datai <= fd_in;   // sample the data
-                               checksum     <= checksum + fd_in; //calc checksum
-                               tcount       <= next_tcount; // advance tcount
                             end
                          end else begin
                             fx2_slrd_b      <= 1; // deassert read enable
-                            di_write        <= 0;
                          end
+
+			 // Write data only if the empty signal is not
+			 // asserted.  The fx2_slrd_b above can
+			 // actually clock out too much data due to
+			 // sampling the empty signal.  So this only
+			 // writes data into the FPGA if the empty
+			 // flag was not asserted when the fx2_slrd
+			 // read request was made.
+			 if(!fx2_slrd_b && empty_b) begin 
+                            di_write     <= 1;
+                            di_reg_datai <= fd_in;   // sample the data
+                            checksum     <= checksum + fd_in; //calc checksum
+                            tcount       <= next_tcount; // advance tcount
+			 end else begin
+			    di_write     <= 0;
+			 end
                       end
                    end
                    
