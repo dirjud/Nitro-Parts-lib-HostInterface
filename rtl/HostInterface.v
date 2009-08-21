@@ -340,8 +340,12 @@ module HostInterface
                       end else begin
                          fx2_fifo_addr <= WRITE_EP;
                          if(fx2_slrd_b) begin
-                            if(empty_b && di_write_rdy) begin
+                            if (!wait_ok) begin
+                                wait_buf <= wait_buf + 1;
+                            end
+                            if(empty_b && di_write_rdy && wait_ok) begin
                                fx2_slrd_b   <= 0;       // assert read enable
+                               wait_buf     <= 0;
                                di_write     <= 1;
                                di_reg_datai <= fd_in;   // sample the data
                                checksum     <= checksum + fd_in; //calc checksum
