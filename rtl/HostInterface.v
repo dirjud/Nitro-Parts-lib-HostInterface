@@ -176,9 +176,6 @@ module HostInterface
    reg wait_buf;
    wire wait_ok = &wait_buf;
 
-   reg [7:0] auto_pktend_cnt; // 255 reads then 256th = auto commit
-   reg pkt_ended; 
-   
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
          state            <= IDLE;
@@ -200,8 +197,6 @@ module HostInterface
          wait_buf         <= 0;
          checksum         <= 0;
          status           <= 0;
-         auto_pktend_cnt  <= 0;
-         pkt_ended        <= 0;
       end else begin
          di_read_mode     <= (state == PROCESS_CMD) && (cmd == READ_CMD);
          di_write_mode    <= (state == PROCESS_CMD) && (cmd == WRITE_CMD);
@@ -217,7 +212,6 @@ module HostInterface
             fx2_fifo_addr <= WRITE_EP;
             tcount        <= 0;
             checksum      <= 0;
-            auto_pktend_cnt <= 0;
             
          end else begin
 
@@ -291,9 +285,6 @@ module HostInterface
                           fd_out      <= di_reg_datao;
                           checksum    <= checksum + di_reg_datao;//calc checksum
                        end
-                       if (di_read) begin
-                          auto_pktend_cnt <= auto_pktend_cnt + 1;
-                       end
                        
                        if(!di_read_mode) begin // the first cycle of read_mode
                           di_read_req <= 1;
@@ -302,19 +293,20 @@ module HostInterface
                           di_read              <= 0;
                           di_read_req          <= 0;
 
-                          if (!pkt_ended && !fx2_slwr_b) begin
-                             if (|auto_pktend_cnt) begin 
-                               fx2_pktend_b <= 0; // commit the short packet.
-                               auto_pktend_cnt <= 0;
-                             end
-                             pkt_ended <= 1;
-                          end else if (pkt_ended) begin
-                               fx2_pktend_b <= 1;
-                               auto_pktend_cnt <= 0;
-                               tcount <= 0;
-                               state  <= SEND_ACK;
-			              end
-                          
+                          if (!fx2_slwr_b) begin // send pktend after slwr_b 
+			     fx2_slwr_b   <= 1;
+                             if (|tcount[7:0]) begin // check if this transfer is a multiple of 256.  If so, we do not send the pckend signal
+				fx2_pktend_b <= 0; // commit the short packet.
+			     end else begin
+				tcount <= 0;
+				state  <= SEND_ACK; // no packent necessary
+			     end
+                          end else if(!fx2_pktend_b) begin
+			     fx2_pktend_b <= 1;
+                             tcount <= 0;
+			     state  <= SEND_ACK;
+			  end
+
                        end else begin
 
                           if (!wait_ok) begin
@@ -327,7 +319,6 @@ module HostInterface
                              di_reg_addr       <= di_reg_addr + 1;
                              di_read_req       <= (next_tcount < di_len);
                              wait_buf <= 0;
-                             pkt_ended <= 0;
                           end else begin
                              di_read_req       <= 0;
                              di_read           <= 0;
