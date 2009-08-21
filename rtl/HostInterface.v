@@ -77,6 +77,9 @@
      The 'di_reg_addr' changes with 'di_read', so the user can register
      'di_reg_datao' if necessary. 
  
+     ########################################################################
+     ########################      WRITE EXAMPLES     #######################
+     ########################################################################
              ___ _______________________________________________________
      di_len  ___X__0x2__________________________________________________
                        _________________________________________________
@@ -99,9 +102,6 @@
                    _____________________________________________________
      di_write_rdy                  
                                           
- 
- 
- 
  */
 
 
@@ -195,12 +195,18 @@ module HostInterface
          fd_out           <= 0;
          checksum         <= 0;
          status           <= 0;
+
       end else begin
          di_read_mode     <= (state == PROCESS_CMD) && (cmd == READ_CMD);
          di_write_mode    <= (state == PROCESS_CMD) && (cmd == WRITE_CMD);
          status           <= di_transfer_status;
          
          if(cmd_start) begin
+	    // When cmd_start (flagc) goes high, it must force the
+	    // host interface to stop any other commands in progress
+	    // and receive the new command.  This is a way to ensure
+	    // the PC can always pull the FX2 and the FPGA into a
+	    // known state no matter what it may have done.
             state         <= RCV_CMD;
             tcount        <= 0;
             fx2_sloe_b    <= 0; 
@@ -215,12 +221,16 @@ module HostInterface
 
             case(state)
               IDLE: begin
-                 fx2_sloe_b    <= 0; // FX2 drives the bus when idel
+		 // There is no way out of the idle state from within
+		 // this logic.  Instead, the fx2 raises flagc, which
+		 // causes the if statement above to take priority and
+		 // pull us out of the idle state.
+                 fx2_sloe_b    <= 0; // FX2 drives the bus when idle
                  fx2_slrd_b    <= 1; // No read enable yet
                  fx2_slwr_b    <= 1; // No write enable
                  fx2_pktend_b  <= 1; // No write enable
                  fx2_fifo_addr <= WRITE_EP;
-                 tcount <= 0;
+                 tcount        <= 0;
                  checksum      <= 0;
               end
               
