@@ -172,6 +172,8 @@ module HostInterface
    wire [15:0] cmd     = cmd_buf[0];
    assign di_term_addr     = cmd_buf[1];
    reg [15:0] checksum, status;
+
+   wire       read_ok_from_fx2_fifo = !fx2_slrd_b && empty_b;
    
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
@@ -223,16 +225,19 @@ module HostInterface
               end
               
               RCV_CMD: begin
-
                  if(fx2_slrd_b) begin
                     if(empty_b) begin
-                       cmd_buf[tcount[2:0]] <= fd_in; // sample the input 
-                       tcount <= next_tcount;      // advance the cmd buf addr
                        fx2_slrd_b <= 0;         // assert read enable
                     end
                  end else begin
                     fx2_slrd_b <= 1; // deassert read enable
-                    if(tcount[3:0] == 8) begin
+                 end
+
+                 if(read_ok_from_fx2_fifo) begin
+                    cmd_buf[tcount[2:0]] <= fd_in; // sample the input 
+                    tcount <= next_tcount;      // advance the cmd buf addr
+                 end else begin
+                    if(tcount[3:0] >= 8) begin
                        state  <= PROCESS_CMD;
                        tcount <= 0;
                        di_reg_addr  <= { cmd_buf[3], cmd_buf[2] };
@@ -346,7 +351,7 @@ module HostInterface
 			 // writes data into the FPGA if the empty
 			 // flag was not asserted when the fx2_slrd
 			 // read request was made.
-			 if(!fx2_slrd_b && empty_b) begin 
+			 if(read_ok_from_fx2_fifo) begin 
                             di_write     <= 1;
                             di_reg_datai <= fd_in;   // sample the data
                             checksum     <= checksum + fd_in; //calc checksum
