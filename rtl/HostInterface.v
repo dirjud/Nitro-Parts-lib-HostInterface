@@ -174,6 +174,8 @@ module HostInterface
    reg [15:0] checksum, status;
 
    wire       read_ok_from_fx2_fifo = !fx2_slrd_b && empty_b;
+
+
    
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
@@ -185,6 +187,8 @@ module HostInterface
          di_read_req      <= 0;
          tcount           <= 0;
          di_reg_datai     <= 0;
+	 di_len           <= 0;
+	 di_reg_addr      <= 0;
          
          fx2_sloe_b       <= 0; // FX2 drives the bus when reset
          fx2_slrd_b       <= 1; // No read enable yet
@@ -195,10 +199,19 @@ module HostInterface
          fd_out           <= 0;
          checksum         <= 0;
          status           <= 0;
-
+	 cmd_buf[0] <= 0;
+	 cmd_buf[1] <= 0;
+	 cmd_buf[2] <= 0;
+	 cmd_buf[3] <= 0;
+	 cmd_buf[4] <= 0;
+	 cmd_buf[5] <= 0;
+	 cmd_buf[6] <= 0;
+	 cmd_buf[7] <= 0;
+	 
+	 
       end else begin
-         di_read_mode     <= (state == PROCESS_CMD) && (cmd == READ_CMD);
-         di_write_mode    <= (state == PROCESS_CMD) && (cmd == WRITE_CMD);
+         di_read_mode     <= ((state == PROCESS_CMD) || (state == SEND_ACK)) && (cmd == READ_CMD);
+         di_write_mode    <= ((state == PROCESS_CMD) || (state == SEND_ACK)) && (cmd == WRITE_CMD);
          status           <= di_transfer_status;
          
          if(cmd_start) begin
