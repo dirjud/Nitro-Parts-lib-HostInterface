@@ -1,0 +1,7 @@
+Verilog Host Interface for Ubixum FPGA data acquistion boards.
+
+Dependencies:
+    Nitrogen data acquistion drivers:
+        http://ubixum.com/nitrogen-data-acquistion
+
+

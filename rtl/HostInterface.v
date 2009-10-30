@@ -127,6 +127,7 @@ module HostInterface
   (
    input wire ifclk,
    input wire resetb,
+   input wire hi_csb,
 
    input [2:0] fx2_flags,
    output reg fx2_sloe_b,
@@ -157,7 +158,7 @@ module HostInterface
    reg [2:0] flags;
    wire  empty_b     = flags[0];
    wire  full_b      = flags[1];
-   wire  cmd_start   = flags[2];
+   reg  cmd_start;
 
    reg [15:0] fd_in, fd_out;
    reg [15:0] cmd_buf[0:7];
@@ -167,9 +168,11 @@ module HostInterface
       if(!resetb) begin
          flags <= 0;
          fd_in <= 0;
+         cmd_start <= 1;
       end else begin
          flags <= fx2_flags;
          fd_in <= fx2_fd_in;
+         cmd_start <= hi_csb;
       end
    end
    

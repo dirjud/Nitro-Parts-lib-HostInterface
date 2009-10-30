@@ -1,0 +1,6 @@
+obj_dir
+rtl_auto
+*.vcd
+*.so
+*.pyc
+

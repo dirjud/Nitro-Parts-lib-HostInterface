@@ -1,0 +1,86 @@
+<deviceinterface
+  xmlns="http://ubixum.com/deviceinterface/"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://ubixum.com/deviceinterface/ deviceinterface.xsd">
+  <terminal 
+      name="Fast"
+      regAddrWidth="16"
+      regDataWidth="16"
+      addr="0">
+   <comment><![CDATA[Fast test endpoint]]></comment>
+    <register
+       name="fast_buf"
+       addr="0">
+      <comment><![CDATA[test buffer]]></comment>
+       <type>int</type>
+       <mode>write</mode>
+       <width>16</width>
+       <init>30891</init>
+       <array>160</array>
+    </register>
+    <register
+       name="fast_reg"
+       addr="160">
+      <comment><![CDATA[]]></comment>
+       <type>int</type>
+       <mode>write</mode>
+       <width>16</width>
+       <init>10</init>
+       <array>1</array>
+    </register>
+  </terminal>
+  <terminal 
+      name="Slow"
+      regAddrWidth="16"
+      regDataWidth="16"
+      addr="1">
+   <comment><![CDATA[Slow test endpoint]]></comment>
+    <register
+       name="slow_buf"
+       addr="0">
+      <comment><![CDATA[]]></comment>
+       <type>int</type>
+       <mode>write</mode>
+       <width>16</width>
+       <init>25923</init>
+       <array>160</array>
+    </register>
+    <register
+       name="slow_reg"
+       addr="160">
+      <comment><![CDATA[]]></comment>
+       <type>int</type>
+       <mode>write</mode>
+       <width>16</width>
+       <init>11</init>
+       <array>1</array>
+    </register>
+  </terminal>
+  <terminal 
+      name="NeverReadReady"
+      regAddrWidth="16"
+      regDataWidth="16"
+      addr="2">
+   <comment><![CDATA[Never read ready test endpoint]]></comment>
+    <register
+       name="reg2"
+       addr="0">
+      <comment><![CDATA[]]></comment>
+       <type>int</type>
+       <mode>write</mode>
+       <width>16</width>
+       <init>30891</init>
+       <array>1</array>
+    </register>
+    <register
+       name="reg3"
+       addr="1">
+      <comment><![CDATA[]]></comment>
+       <type>int</type>
+       <mode>write</mode>
+       <width>16</width>
+       <init>10</init>
+       <array>1</array>
+    </register>
+  </terminal>
+</deviceinterface>
