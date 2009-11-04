@@ -83,8 +83,8 @@ clean:
 	rm -rf obj_dir
 	rm -f V$(TOP_MODULE).so
 	rm -f *.pyc
-	rm *.vcd
-	rm *.vvp
+	rm -f *.vcd
+	rm -f *.vvp
 	rm -rf rtl_auto
 
 distclean: clean
