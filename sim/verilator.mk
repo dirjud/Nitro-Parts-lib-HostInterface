@@ -83,6 +83,9 @@ clean:
 	rm -rf obj_dir
 	rm -f V$(TOP_MODULE).so
 	rm -f *.pyc
+	rm *.vcd
+	rm *.vvp
+	rm -rf rtl_auto
 
 distclean: clean
 	-find ./ -type f -name "*~" -exec rm -rf {} \;

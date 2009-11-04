@@ -1,3 +1,21 @@
+/**
+ * Copyright (C) 2009 Ubixum, Inc. 
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ **/
+
 /* Author: Lane Brooks
    Date: 8/8/2009
  
@@ -110,10 +128,12 @@ module HostInterface
    input wire ifclk,
    input wire resetb,
 
+   input wire fx2_hics_b,
    input [2:0] fx2_flags,
    output reg fx2_sloe_b,
    output reg fx2_slrd_b,
    output reg fx2_slwr_b,
+   output reg fx2_slcs_b,
    output reg fx2_pktend_b,
    output reg [1:0] fx2_fifo_addr,
    inout [15:0] fx2_fd,
@@ -135,11 +155,20 @@ module HostInterface
    input [15:0]      di_transfer_status
    );
 
+   // synthesis attribute IOB of fd_out        is "TRUE";
+   // synthesis attribute IOB of fx2_hics_b    is "TRUE";
+   // synthesis attribute IOB of fx2_fifo_addr is "TRUE";
+   // synthesis attribute IOB of fx2_slrd_b    is "TRUE";
+   // synthesis attribute IOB of fx2_slwr_b    is "TRUE";
+   // synthesis attribute IOB of fx2_slcs_b    is "TRUE";
+   // synthesis attribute IOB of fx2_sloe_b    is "TRUE";
+   // synthesis attribute IOB of fx2_pktend_b  is "TRUE";
+   
    wire [31:0] transfer_len;
    reg [2:0] flags;
    wire  empty_b     = flags[0];
    wire  full_b      = flags[1];
-   wire  cmd_start   = flags[2];
+   reg  cmd_start;
 
    reg [15:0] fd_in, fd_out;
    reg [15:0] cmd_buf[0:7];
@@ -149,9 +178,12 @@ module HostInterface
       if(!resetb) begin
          flags <= 0;
          fd_in <= 0;
+         cmd_start <= 1;
+	 fx2_slcs_b <= 0;
       end else begin
          flags <= fx2_flags;
          fd_in <= fx2_fd_in;
+         cmd_start <= fx2_hics_b;
       end
    end
    
@@ -229,6 +261,26 @@ module HostInterface
             fx2_fifo_addr <= WRITE_EP;
             tcount        <= 0;
             checksum      <= 0;
+
+            di_read_mode  <= 0;
+            di_write_mode <= 0;
+            di_write      <= 0;
+            di_read       <= 0;
+            di_read_req   <= 0;
+            di_reg_datai  <= 0;
+	    di_len        <= 0;
+	    di_reg_addr   <= 0;
+
+            fd_out        <= 0;
+            status        <= 0;
+	    cmd_buf[0]    <= 0;
+	    cmd_buf[1]    <= 0;
+	    cmd_buf[2]    <= 0;
+	    cmd_buf[3]    <= 0;
+	    cmd_buf[4]    <= 0;
+	    cmd_buf[5]    <= 0;
+	    cmd_buf[6]    <= 0;
+	    cmd_buf[7]    <= 0;
             
          end else begin
 

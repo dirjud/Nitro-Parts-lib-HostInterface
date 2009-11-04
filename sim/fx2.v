@@ -1,63 +1,73 @@
+/**
+ * Copyright (C) 2009 Ubixum, Inc. 
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ **/
+
+
 module fx2
   (
-   input XTALIN,
-   input RESET_b,
-   input WAKEUP,
+   input clk,
    
-   output XTALOUT,
-   output IFCLK,
-   output CLKOUT,
-
-   input  [1:0] RDY,
-   output [2:0] CTL, // flags C,B,A
+   output fx2_ifclk,
+   output fx2_clkout,
    
-   inout [15:0] FD,
-   input [7:0] PA,
+   output fx2_hics_b,
+   output [2:0] fx2_flags,
+   input fx2_sloe_b,
+   input fx2_slrd_b,
+   input fx2_slwr_b,
+   input fx2_slcs_b,
+   input fx2_pktend_b,
+   input [1:0] fx2_fifo_addr,
+   inout [15:0] fx2_fd,
    
    inout SCL,
-   inout SDA,
-   
-   inout DMINUS,
-   inout DPLUS
+   inout SDA
    );
 
-   
-   assign XTALOUT = XTALIN;
-   assign IFCLK   = !XTALIN; // invert clk
-   assign CLKOUT  = XTALIN;
-
-   wire       pktend_b  = PA[6];
-   wire [1:0] fifo_addr = PA[5:4];
-   wire       slrd_b    = RDY[0] | (fifo_addr != 0);
-   wire       slwr_b    = RDY[1] | (fifo_addr != 2);
-   wire       clk       = XTALIN;
-
-
    reg sloe_b;
-   reg [6:0] state;
-   parameter SEND_CMD = 1;
-
-   reg flagc /* verilator public */;
-
-
+   reg hics_b             /* verilator public */;
    reg [15:0] rbuf[0:255] /* verilator public */;
-   reg [8:0]  rptr /* verilator public */;
-   reg rdone /* verilator public */;
- 
+   reg [8:0]  rptr        /* verilator public */;
+   reg rdone              /* verilator public */;
    reg [15:0] wbuf[0:255] /* verilator public */;
-   reg [8:0]  wptr /* verilator public */;
-   reg [8:0]  wend /* verilator public */;
-   reg [15:0] datao /* verilator public */;
-   reg empty_b /* verilator public */;
-   reg full_b /* verilator public */;
-   wire [15:0] datao1 = (fifo_addr == 0) ? datao : 0;
+   reg [8:0]  wptr        /* verilator public */;
+   reg [8:0]  wend        /* verilator public */;
+   reg [15:0] datao       /* verilator public */;
+   reg empty_b            /* verilator public */;
+   reg full_b             /* verilator public */;
 
-   assign CTL = { flagc, full_b, empty_b };
-   assign FD = (sloe_b) ? 16'hZZZZ : datao1;
-   wire [15:0] fd_in = FD;
+   assign SCL = 1'bz;
+   assign SDA = 1'bz;
+
+   assign fx2_ifclk  = !clk; // invert clk
+   assign fx2_clkout = clk;
+   assign fx2_hics_b = hics_b;
+   
+   wire slrd_b    = fx2_slrd_b | (fx2_fifo_addr != 0);
+   wire slwr_b    = fx2_slwr_b | (fx2_fifo_addr != 2);
+
+   wire [15:0] datao1 = (fx2_fifo_addr == 0) ? datao : 0;
+
+   assign fx2_flags = { 1'b0, full_b, empty_b };
+   assign fx2_fd = (sloe_b) ? 16'hZZZZ : datao1;
+   wire [15:0] fd_in = fx2_fd;
    
    always @(posedge clk) begin
-      sloe_b  <= PA[2];
+      sloe_b  <= fx2_sloe_b;
       
       empty_b <= !((wptr >= wend) || (!slrd_b && wptr+1 == wend));
       if(!slrd_b && (wptr <= wend)) begin
@@ -71,16 +81,168 @@ module fx2
          rptr <= rptr + 1;
       end
 
-      if(!pktend_b) begin
+      if(!fx2_pktend_b) begin
          rdone <= 1;
       end
    end
 
-   wire [15:0] rbuf00=rbuf[0];
-   wire [15:0] rbuf01=rbuf[1];
-   wire [15:0] rbuf02=rbuf[2];
+   initial begin
+      hics_b=1;
+      rptr=0;
+      rdone=0;
+      wptr=0;
+      wend=0;
+      datao=0;
+   end
 
+`ifndef verilator
+/***********************************************************/
+/********************** GENERIC VERILOG MODEL **************/
+/***********************************************************/
    
+    integer i;
+    integer txcount;
+    integer rxcount;
+
+    parameter RDWR_BUF_SIZE = 100; // default 100 bytes
+    
+    // final destination buffer for reads and writes
+    reg [7:0] rdwr_data_buf[0:RDWR_BUF_SIZE-1];
+    reg [31:0] rdwr_data_cur; 
+
+   /**
+    * each io call sends a command to the FPGA
+    **/
+   task _sendcmd;
+      input [15:0] term_addr;
+      input [31:0] reg_addr;
+      input [7:0]  cmd;
+      input [31:0] length;
+      begin
+	 
+	 hics_b=1;
+	 repeat (50) @(posedge clk);
+	 hics_b=0;
+	 repeat (20) @(posedge clk);
+	 wbuf[0] = { 8'hc3, cmd };
+	 wbuf[1] = term_addr;
+	 wbuf[2] = reg_addr[15:0];
+	 wbuf[3] = reg_addr[31:16];
+	 wbuf[4] = length[15:0];
+	 wbuf[5] = length[31:16];
+	 wbuf[6] = 0; // reserved
+	 wbuf[7] = 16'haa55; // ack
+	 datao=wbuf[0];
+	 wend = 8;
+	 wptr = 0;
+	 rptr = 0;
+	 rdone = 0;
+	 
+	 repeat (3) @(posedge clk);
+      end
+   endtask
+
+
+   /**
+    * Simulate an FX2 get command.
+    **/
+   task get;
+      input [15:0] term_addr;
+      input [31:0] reg_addr;
+      output [15:0] value;
+      begin
+	 read(term_addr,reg_addr, 2);
+	 value = { rdwr_data_buf[1], rdwr_data_buf[0] };
+      end
+   endtask
+
+   /**
+    * Simulate an FX2 set command
+    **/
+   task set;
+      input [15:0] term_addr;
+      input [31:0] reg_addr;
+      input [15:0] value;
+      begin
+	 rdwr_data_cur=0; 
+	 rdwr_data_buf[0] = value[7:0];
+	 rdwr_data_buf[1] = value[15:8];
+	 write(term_addr,reg_addr,2);
+      end
+   endtask
+
+   /**
+    * Simulate an FX2 read command
+    **/
+   task read;
+      input [15:0] term_addr;
+      input [31:0] reg_addr;
+      input [31:0] length;
+      begin
+	 _sendcmd( term_addr, reg_addr, 1, length ); 
+	 rxcount = 0;
+	 while(rxcount < length + 4) begin 
+	    if(rdone || (full_b==0)) begin 
+               repeat (10) @(posedge clk);
+
+               for(i=0; i<rptr; i=i+1) begin 
+		  rdwr_data_buf[rxcount] = rbuf[i][7:0];
+		  rdwr_data_buf[rxcount+1] = rbuf[i][15:8];
+		  rxcount = rxcount + 2;
+               end 
+               rdone = 0;
+               rptr  = 0;
+	    end 
+	    @(posedge clk);
+	    
+	    //if(main_time >= timeout_time) {
+	    //  free(rx_data);                         
+	    //  throw Exception(USB_COMM, "Timed out");
+	    //}
+	 end 
+      end
+   endtask
+
+   /**
+    * Simulate an FX2 write command
+    **/
+   task write;
+      input [15:0] term_addr;
+      input [31:0] reg_addr;
+      input [31:0] length;
+      begin
+	 
+	 _sendcmd ( term_addr, reg_addr, 2, length );
+	 txcount = 0;
+	 
+	 while (txcount < length) begin
+	    for (i=0;i<256 && txcount < length; i=i+1) begin
+               while ( empty_b ) begin
+		  @(posedge clk);
+               end
+               wbuf[i] = { rdwr_data_buf[txcount+1] , rdwr_data_buf[txcount] };
+               txcount = txcount + 2;
+	    end
+	    datao = wbuf[0];
+	    wptr = 0;
+	    wend = i;
+
+	    @(posedge clk);
+	 end
+
+	 while (rptr < 4) begin
+	    @(posedge clk);
+	 end
+	 
+	 repeat (10) @(posedge clk);
+      end
+   endtask
+
+`else 
+/***********************************************************/
+/********************** VERILATOR CODE *********************/
+/***********************************************************/
+
  `systemc_header
 #ifndef FX2_H
 #define FX2_H
@@ -104,9 +266,9 @@ private:
    
     void send_cmd(int cmd, int term, int reg, int len) {
 
-    *flagc  = 1;
+    *hics_b  = 1;
     advance_clk(50);
-    *flagc  = 0;
+    *hics_b  = 0;
     advance_clk(20);
 
     wbuf[0] = 0xC300 | (cmd & 0xFF);
@@ -282,7 +444,7 @@ protected:
   ~FX2Device() throw() {}
   
   SData *wbuf, *rbuf, *wptr, *rptr, *wend, *datao;
-  CData *rdone, *flagc, *full_b, *empty_b;
+  CData *rdone, *hics_b, *full_b, *empty_b;
   
 
 };
@@ -299,12 +461,12 @@ protected:
    fx2_dev->wend = &wend;
    fx2_dev->datao= &datao;
    fx2_dev->rdone= &rdone;
-   fx2_dev->flagc= &flagc;
+   fx2_dev->hics_b= &hics_b;
    fx2_dev->full_b= &full_b;
    fx2_dev->empty_b= &empty_b;
  `systemc_dtor
    delete fx2_dev;    // Destruct contained object
  `verilog
-
+`endif
    
 endmodule

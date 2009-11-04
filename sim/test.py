@@ -14,7 +14,7 @@ def setup():
     
     d = {}
     execfile("terminals.py", d)
-    dev.set_tree(d["di"])
+    dev.set_di(d["di"])
 
 
 def test_transfer_status():

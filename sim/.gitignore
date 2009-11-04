@@ -1,3 +1,4 @@
 obj_dir
-Vpcb.so
-trace.vcd
+*.vcd
+*.so
+*.pyc
