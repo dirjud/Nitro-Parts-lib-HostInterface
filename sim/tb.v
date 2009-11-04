@@ -32,7 +32,7 @@ module tb
    wire [1:0]  fx2_fifo_addr;
    wire [2:0]  fx2_flags;
    wire        fx2_ifclk, fx2_hics_b, fx2_sloe_b, fx2_slrd_b, fx2_slwr_b;
-   wire        fx2_pktend_b;
+   wire        fx2_pktend_b, fx2_clkout;
    
    
    fx2 fx2
@@ -46,12 +46,14 @@ module tb
       .fx2_pktend_b                        (fx2_pktend_b),
       .fx2_fifo_addr                       (fx2_fifo_addr[1:0]),
       .fx2_fd                              (fx2_fd),
-      .fx2_flags                           (fx2_flags)
+      .fx2_flags                           (fx2_flags),
+      .fx2_clkout                          (fx2_clkout)
       );
    
    fpga fpga 
      (
       .fx2_ifclk                           (fx2_ifclk),
+      .fx2_clkout                          (fx2_clkout),
       .fx2_hics_b                          (fx2_hics_b),
       .fx2_sloe_b                          (fx2_sloe_b),
       .fx2_slrd_b                          (fx2_slrd_b),

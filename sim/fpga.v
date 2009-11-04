@@ -20,6 +20,7 @@
 module fpga 
 (
    input fx2_ifclk,
+   input fx2_clkout,
    input fx2_hics_b,
    input [2:0] fx2_flags,
    output fx2_sloe_b,
