@@ -355,9 +355,10 @@ protected:
     }
     // check status word
     if(ack_buf[2] != 0) {
-      free(rx_data);                           
-      sprintf(msg, "Non-zero ACK status 0x%x (%d) returned.", ack_buf[2], ack_buf[2]);
-      throw Exception(USB_COMM, msg);
+      int err = ack_buf[2];			 
+      free(rx_data);
+      sprintf(msg, "Non-zero ACK status 0x%x (%d) returned.", err, err);
+      throw Exception(USB_COMM, msg, err);
     }
 
     advance_clk(1);
@@ -428,7 +429,7 @@ protected:
     // check status word
     if(rbuf[2] != 0) {
       sprintf(msg, "Non-zero ACK status 0x%x (%d) returned.", rbuf[2], rbuf[2]);
-      throw Exception(USB_COMM, msg);
+      throw Exception(USB_COMM, msg, rbuf[2]);
     }
 
     advance_clk(3);
