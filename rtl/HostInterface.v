@@ -322,7 +322,7 @@ module HostInterface
               end
             
               SEND_ACK: begin // tcount should be zero upon entry
-                 fx2_fifo_addr   <= READ_EP;
+                 fx2_fifo_addr <= READ_EP;
                  
                  if(fx2_sloe_b==0) begin
                     fx2_sloe_b      <= 1; // we drive bus to send ack
@@ -334,7 +334,7 @@ module HostInterface
                           0: fd_out          <= 16'hA50F;
                           1: fd_out          <= checksum;
                           2: fd_out          <= status;
-                          default:fd_out     <= tcount[15:0];
+                          default:fd_out     <= di_reg_datao;
                         endcase
                     end
                  end else begin
