@@ -98,19 +98,11 @@
      ########################################################################
      ########################      WRITE EXAMPLES     #######################
      ########################################################################
-             ___ _______________________________________________________
-     di_len  ___X__0x2__________________________________________________
-                       _________________________________________________
-     di_write_mode ___/
-                                ___                 ___
-     di_write      ____________/   \_______________/   \________________
-                   ________________             _______           ______
-     di_write_rdy                  \___________/       \_________/
-                   ____________ ___________________ ____________________
-     di_reg_datai  ____________X___________________X____________________
-                                      byte 0            byte 1
 
- 
+     For terminals that can write in a single clock cycle, you can hold
+     the di_write_rdy high and sample the di_reg_datai when di_write goes
+     high.
+
              ___ _______________________________________________________
      di_len  ___X__0x2__________________________________________________
                        _________________________________________________
@@ -119,7 +111,44 @@
      di_write      ____________/   \___/   \____________________________
                    _____________________________________________________
      di_write_rdy                  
-                                          
+                   ____________ _______ ____________________
+     di_reg_datai  ____________X_______X____________________
+                                byte 0   byte 1          
+
+                  _____________ _______ ___________________
+     di_reg_addr  _____________X_______X___________________
+                                addr+0    addr+1   
+
+     For terminals (like serial devices) that require time to write
+     the data, you should drop the di_write_rdy signal when di_write
+     goes high and raise it when the write has completed. For a slow
+     terminal, you should gate di_write_rdy combinatorial with di_write
+     like this:
+
+        assign di_write_rdy = !di_write && !my_terminal_is_busy;
+
+     With this approach, you can kick off the write to your terminal
+     using the write signal and use the di_write_rdy to signal when
+     the write has completed. The host interface will wait to issue
+     the next write until the di_write_rdy is received. You must
+     hold di_write_rdy normally high in order to receive the first
+     di_write pulse.
+ 
+             ___ _______________________________________________________
+     di_len  ___X__0x2__________________________________________________
+                       _________________________________________________
+     di_write_mode ___/
+                                ___                 ___
+     di_write      ____________/   \_______________/   \________________
+                   ____________                 ___               ______
+     di_write_rdy              \_______________/   \_____________/
+                   ____________ ___________________ ____________________
+     di_reg_datai  ____________X___________________X____________________
+                                      byte 0            byte 1
+                  _____________ ___________________ ________________
+     di_reg_addr  _____________X___________________X________________
+                                      addr+0            addr+1
+
  */
 
 
@@ -394,9 +423,6 @@ module HostInterface
                     end
                    
                    WRITE_CMD: begin
-                      if(di_write) begin
-                         di_reg_addr         <= di_reg_addr + 1;
-                      end
                       
                       if(!di_write_mode) begin
                          fx2_fifo_addr          <= WRITE_EP;
@@ -431,6 +457,9 @@ module HostInterface
                             di_reg_datai <= fd_in;   // sample the data
                             checksum     <= checksum + fd_in; //calc checksum
                             tcount       <= next_tcount; // advance tcount
+			    if(tcount != 0) begin
+			       di_reg_addr <= di_reg_addr + 1;
+			    end
 			 end else begin
 			    di_write     <= 0;
 			 end
