@@ -255,7 +255,7 @@ module HostInterface
          fx2_slrd_b       <= 1; // No read enable yet
          fx2_slwr_b       <= 1; // No write enable
          fx2_pktend_b     <= 1; // No write enable
-         fx2_fifo_addr    <= WRITE_EP;
+         fx2_fifo_addr    <= 2'b11;
 
          fd_out           <= 0;
          checksum         <= 0;
@@ -266,8 +266,6 @@ module HostInterface
 	 cmd_buf[3] <= 0;
 	 cmd_buf[4] <= 0;
 	 cmd_buf[5] <= 0;
-	 cmd_buf[6] <= 0;
-	 cmd_buf[7] <= 0;
 	 
 	 
       end else begin
@@ -308,8 +306,6 @@ module HostInterface
 	    cmd_buf[3]    <= 0;
 	    cmd_buf[4]    <= 0;
 	    cmd_buf[5]    <= 0;
-	    cmd_buf[6]    <= 0;
-	    cmd_buf[7]    <= 0;
             
          end else begin
 
@@ -338,7 +334,8 @@ module HostInterface
                  end
 
                  if(read_ok_from_fx2_fifo) begin
-                    cmd_buf[tcount[2:0]] <= fd_in; // sample the input 
+		    if(tcount[2:0] < 6) // only using first 6 of 8 words in the cmd stream.
+                      cmd_buf[tcount[2:0]] <= fd_in; // sample the input 
                     tcount <= next_tcount;      // advance the cmd buf addr
                  end else begin
                     if(tcount[3:0] >= 8) begin
