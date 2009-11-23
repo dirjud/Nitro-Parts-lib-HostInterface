@@ -46,7 +46,7 @@ reg [15:0] di_reg_datao;
 reg di_read_rdy, di_write_rdy;
 reg [15:0] di_transfer_status;
 
-reg [4:0] reset_cnt;
+reg [1:0] reset_cnt;
 wire resetb = &reset_cnt;
    wire ifclk = fx2_ifclk;
    

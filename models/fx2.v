@@ -156,6 +156,27 @@ module fx2
       end
    endtask
 
+   // Get a register wider than 16b. specify the width of the register in
+   // in bits and this will loop through starting at 'reg_addr' doing 16b
+   // gets until it has retrieved all words in the wide register. Return
+   // value has a max of 1024 bits.
+   task getW;
+      input [15:0] term_addr;
+      input [31:0] reg_addr;
+      input [9:0] width;
+      output [1023:0] value;
+      integer 	     wcount;
+      begin
+	 value = 0;//clear out the return value first
+	 for(wcount=0; wcount<width; wcount=wcount+16) begin // loop through reg
+	   read(term_addr,reg_addr+(wcount/16), 2);
+	   value = value | ({ rdwr_data_buf[1], rdwr_data_buf[0] } << wcount);
+	 end
+      end
+   endtask
+
+
+   
    /**
     * Simulate an FX2 set command
     **/
@@ -170,6 +191,22 @@ module fx2
 	 write(term_addr,reg_addr,2);
       end
    endtask
+
+   // Set a wide register. See getW() documentation.
+   task setW;
+      input [15:0] term_addr;
+      input [31:0] reg_addr;
+      input [9:0] width;
+      input [1023:0] value;
+      integer 	     wcount;
+      for(wcount=0; wcount<width; wcount=wcount+16) begin
+	 rdwr_data_cur=0; 
+	 rdwr_data_buf[0] = 8'hFF & (value >> wcount);
+	 rdwr_data_buf[1] = 8'hFF & (value >> (wcount+8));
+	 write(term_addr,reg_addr+(wcount/16),2);
+      end
+   endtask
+
 
    /**
     * Simulate an FX2 read command

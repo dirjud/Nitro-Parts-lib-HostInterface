@@ -29,10 +29,13 @@ module tests;
    reg [15:0]  value;
    reg [15:0]  set_val[0:3];
    reg [15:0]  get_val[0:3];
+   reg [`WIDTH_Fast_wide_reg-1:0] wide_reg_get, wide_reg_set;
    
    reg 	       passed;
    
    initial begin
+      tb.fpga.reset_cnt = 0;
+      
       $dumpfile ( "sim.vcd" );
       $dumpvars ( 0, tb );
       $display( "Running Simulation" );
@@ -46,15 +49,15 @@ module tests;
 
       
       // do some sets and gets and verify
-      tb.fx2.set(`TERM_Fast, `REG_Fast_fast_buf0, set_val[0]);
-      tb.fx2.set(`TERM_Slow, `REG_Slow_slow_buf0, set_val[2]);
-      tb.fx2.set(`TERM_Fast, `REG_Fast_fast_buf1, set_val[1]);
-      tb.fx2.set(`TERM_Slow, `REG_Slow_slow_buf1, set_val[3]);
+      tb.fx2.set(`TERM_Fast, `Fast_fast_buf0, set_val[0]);
+      tb.fx2.set(`TERM_Slow, `Slow_slow_buf0, set_val[2]);
+      tb.fx2.set(`TERM_Fast, `Fast_fast_buf1, set_val[1]);
+      tb.fx2.set(`TERM_Slow, `Slow_slow_buf1, set_val[3]);
 
-      tb.fx2.get(`TERM_Fast, `REG_Fast_fast_buf0, get_val[0]);
-      tb.fx2.get(`TERM_Fast, `REG_Fast_fast_buf1, get_val[1]);
-      tb.fx2.get(`TERM_Slow, `REG_Slow_slow_buf0, get_val[2]);
-      tb.fx2.get(`TERM_Slow, `REG_Slow_slow_buf1, get_val[3]);
+      tb.fx2.get(`TERM_Fast, `Fast_fast_buf0, get_val[0]);
+      tb.fx2.get(`TERM_Fast, `Fast_fast_buf1, get_val[1]);
+      tb.fx2.get(`TERM_Slow, `Slow_slow_buf0, get_val[2]);
+      tb.fx2.get(`TERM_Slow, `Slow_slow_buf1, get_val[3]);
 
       for(i=0; i<4; i=i+1) begin
 	 if(set_val[i] !== get_val[i]) begin
@@ -70,14 +73,39 @@ module tests;
       do_bbgets(`TERM_Fast, 160);
       do_bbgets(`TERM_Slow, 160);
 
+      wide_reg_set = 73'h123fedcba9876543211;// initial reset value
+      tb.fx2.getW(`TERM_Fast, `Fast_wide_reg, `WIDTH_Fast_wide_reg, wide_reg_get);
+      check_setW_getW();
+
+      wide_reg_set = 73'h0ff3debc9a785634124;
+      tb.fx2.setW(`TERM_Fast, `Fast_wide_reg, `WIDTH_Fast_wide_reg, wide_reg_set);
+      tb.fx2.getW(`TERM_Fast, `Fast_wide_reg, `WIDTH_Fast_wide_reg, wide_reg_get);
+      check_setW_getW();
+      
       if(passed) begin
 	 $display("PASS: All tests");
       end else begin
 	 $display("FAIL: All tests");
       end
+
+      
+      
+      #100
       
       $finish;
    end
+
+   task check_setW_getW;
+      begin
+	 if(wide_reg_get !== wide_reg_set) begin
+	    $display("FAIL: getW test: set:0x%x get:0x%x", wide_reg_set, wide_reg_get);
+	    passed = 0;
+	 end else begin
+	    $display("PASS: getW test: set:0x%x get:0x%x", wide_reg_set, wide_reg_get);
+	 end
+      end
+   endtask // check_setW_getW
+   
 
    task do_bbsets;
       input [15:0] term_addr;

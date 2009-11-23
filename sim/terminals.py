@@ -23,6 +23,12 @@ di=DeviceInterface(
                          width=16,
                          init=10,
                          ),
+                Register(name='wide_reg',
+                         type='int',
+                         mode='write',
+                         width=73,
+                         init=0x123fedcba9876543211,
+                         ),
                 ]
             ),
         Terminal(
