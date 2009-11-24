@@ -32,6 +32,9 @@ module tests;
    reg [`WIDTH_Fast_wide_reg-1:0] wide_reg_get, wide_reg_set;
    
    reg 	       passed;
+
+   parameter BUF_LEN=1002;
+   reg [7:0]   wr_buf[0:BUF_LEN-1];
    
    initial begin
       tb.fpga.reset_cnt = 0;
@@ -81,6 +84,8 @@ module tests;
       tb.fx2.setW(`TERM_Fast, `Fast_wide_reg, `WIDTH_Fast_wide_reg, wide_reg_set);
       tb.fx2.getW(`TERM_Fast, `Fast_wide_reg, `WIDTH_Fast_wide_reg, wide_reg_get);
       check_setW_getW();
+      test_fast_write_read();
+      test_slow_write_read();
       
       if(passed) begin
 	 $display("PASS: All tests");
@@ -144,4 +149,65 @@ module tests;
 	 end
       end
    endtask
+
+
+   task test_fast_write_read;
+      integer j;
+      integer results;
+      begin
+	 for(j=0; j<BUF_LEN; j=j+1) begin
+	    wr_buf[j] = $random;
+	    tb.fx2.rdwr_data_buf[j] = wr_buf[j];
+	 end
+	 tb.fx2.write(`TERM_FastRAM, 0, BUF_LEN);
+	 for(j=0; j<BUF_LEN; j=j+1) begin
+	    tb.fx2.rdwr_data_buf[j] = 8'hXX;
+	 end
+	 tb.fx2.read(`TERM_FastRAM, 0, BUF_LEN);
+	 results=1;
+	 for(j=0; j<BUF_LEN; j=j+1) begin
+	    if(tb.fx2.rdwr_data_buf[j] !== wr_buf[j]) begin
+	       results=0;
+	       $display(" FastRAM write/read failed at location %d: wrote=0x%x read=0x%x", j, wr_buf[j], tb.fx2.rdwr_data_buf[j]);
+	    end
+	 end
+	 if(results==1) begin
+	    $display("PASS: FastRAM write/read test of %d bytes", BUF_LEN);
+	 end else begin
+	    $display("FAIL: FastRAM write/read test of %d bytes", BUF_LEN);
+	    passed=0;
+	 end
+      end
+   endtask 
+
+
+   task test_slow_write_read;
+      integer j;
+      integer results;
+      begin
+	 for(j=0; j<BUF_LEN; j=j+1) begin
+	    wr_buf[j] = $random;
+	    tb.fx2.rdwr_data_buf[j] = wr_buf[j];
+	 end
+	 tb.fx2.write(`TERM_SlowRAM, 0, BUF_LEN);
+	 for(j=0; j<BUF_LEN; j=j+1) begin
+	    tb.fx2.rdwr_data_buf[j] = 8'hXX;
+	 end
+	 tb.fx2.read(`TERM_SlowRAM, 0, BUF_LEN);
+	 results=1;
+	 for(j=0; j<BUF_LEN; j=j+1) begin
+	    if(tb.fx2.rdwr_data_buf[j] !== wr_buf[j]) begin
+	       results=0;
+	       $display(" SlowRAM write/read failed at location %d: wrote=0x%x read=0x%x", j, wr_buf[j], tb.fx2.rdwr_data_buf[j]);
+	    end
+	 end
+	 if(results==1) begin
+	    $display("PASS: SlowRAM write/read test of %d bytes", BUF_LEN);
+	 end else begin
+	    $display("FAIL: SlowRAM write/read test of %d bytes", BUF_LEN);
+	    passed=0;
+	 end
+      end
+   endtask
+
 endmodule

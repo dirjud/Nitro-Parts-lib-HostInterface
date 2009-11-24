@@ -87,10 +87,12 @@ HostInterface HostInterface
    .di_write_rdy			(di_write_rdy),
    .di_transfer_status			(di_transfer_status[15:0]));
 
-   
+   reg [15:0] fast_memory[0:4095];
+   reg [15:0] FastRAM_datao;
+   reg [15:0] slow_memory[0:4095];
+   reg [15:0] SlowRAM_datao;
    wire di_clk           = ifclk;
    wire slow_read_rdy, slow_write_rdy;
-
    always @(*) begin
       if(di_term_addr == `TERM_Fast) begin
          di_reg_datao     = FastTerminal_reg_datao;
@@ -107,9 +109,36 @@ HostInterface HostInterface
          di_read_rdy      = slow_read_rdy;
          di_write_rdy     = slow_write_rdy;
          di_transfer_status=0;
+      end else if(di_term_addr == `TERM_FastRAM) begin
+         di_reg_datao     = FastRAM_datao;
+	 di_read_rdy      = 1;
+         di_write_rdy     = 1;
+         di_transfer_status=0;
+      end else if(di_term_addr == `TERM_SlowRAM) begin
+         di_reg_datao     = SlowRAM_datao;
+	 di_read_rdy      = slow_read_rdy;
+         di_write_rdy     = slow_write_rdy;
+         di_transfer_status=0;
+      end else begin
+         di_reg_datao = 16'hAAAA;
+         di_read_rdy  = 1;
+         di_write_rdy = 1;
+	 di_transfer_status = 16'hFFFF; // undefined terminal, return error code
       end
    end
 
+   always @(posedge ifclk) begin
+      if(di_write && di_term_addr == `TERM_FastRAM) begin
+	 fast_memory[di_reg_addr] <= di_reg_datai;
+      end
+      FastRAM_datao <= fast_memory[di_reg_addr];
+      if(di_write && di_term_addr == `TERM_SlowRAM) begin
+	 slow_memory[di_reg_addr] <= di_reg_datai;
+      end
+      if(di_read_req && di_term_addr == `TERM_SlowRAM) 
+	SlowRAM_datao <= slow_memory[di_reg_addr];
+   end
+   
    
 `include "FastTerminalInstance.v"
 `include "NeverReadReadyTerminalInstance.v"
@@ -121,7 +150,7 @@ HostInterface HostInterface
    assign slow_write_rdy  = &slow_count && !di_write;
 
    always @(posedge ifclk) begin
-      if(di_term_addr == `TERM_Slow) begin
+      if(di_term_addr == `TERM_Slow || di_term_addr == `TERM_SlowRAM) begin
          if(di_read_req || di_write) begin
             slow_count   <= 0;
          end else if(!slow_read_rdy || !slow_write_rdy) begin

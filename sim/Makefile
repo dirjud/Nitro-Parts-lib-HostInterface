@@ -12,7 +12,7 @@ test.vcd: Vtb.so test.py
 	nosetests -v test.py
 
 # these are iverilog tests
-sim.vcd: $(SIM_FILES)
+sim.vcd: $(SIM_FILES) tests.v
 	iverilog -o sim.vvp -I rtl_auto tests.v $(SIM_FILES)
 	vvp sim.vvp
 

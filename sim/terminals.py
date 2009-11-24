@@ -53,6 +53,18 @@ di=DeviceInterface(
                 ]
             ),
         Terminal(
+            name='FastRAM',
+            comment='Fast RAM Terminal',
+            regAddrWidth=16, 
+            regDataWidth=16,
+            ),
+        Terminal(
+            name='SlowRAM',
+            comment='Slow RAM Terminal',
+            regAddrWidth=16, 
+            regDataWidth=16,
+            ),
+        Terminal(
             name='NeverReadReady',
             comment='Never read ready test endpoint',
             regAddrWidth=16, 
