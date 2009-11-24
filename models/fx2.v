@@ -260,10 +260,10 @@ module fx2
 	 txcount = 0;
 	 
 	 while (txcount < length) begin
+            while ( empty_b ) begin
+	       @(posedge clk);
+            end
 	    for (i=0;i<256 && txcount < length; i=i+1) begin
-               while ( empty_b ) begin
-		  @(posedge clk);
-               end
                wbuf[i] = { rdwr_data_buf[txcount+1] , rdwr_data_buf[txcount] };
                txcount = txcount + 2;
 	    end
@@ -271,9 +271,10 @@ module fx2
 	    wptr = 0;
 	    wend = i;
 
-	    @(posedge clk);
+	    repeat(4) @(posedge clk);
 	 end
 
+	 // wait for ack
 	 while (rptr < 4) begin
 	    @(posedge clk);
 	 end
