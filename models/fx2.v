@@ -104,7 +104,7 @@ module fx2
     integer txcount;
     integer rxcount;
 
-    parameter RDWR_BUF_SIZE = 100; // default 100 bytes
+    parameter RDWR_BUF_SIZE = 1024; // default size. Override at instanteation for larger read/writes.
     
     // final destination buffer for reads and writes
     reg [7:0] rdwr_data_buf[0:RDWR_BUF_SIZE-1];
@@ -169,9 +169,16 @@ module fx2
       begin
 	 value = 0;//clear out the return value first
 	 for(wcount=0; wcount<width; wcount=wcount+16) begin // loop through reg
-	   read(term_addr,reg_addr+(wcount/16), 2);
-	   value = value | ({ rdwr_data_buf[1], rdwr_data_buf[0] } << wcount);
+	    read(term_addr,reg_addr+(wcount/16), 2);
+	    value = value | ({ rdwr_data_buf[1], rdwr_data_buf[0] } << wcount);
+	    `ifdef DEBUG_FX2 
+	    $display("%d getW: wcount=%d buf[0]=0x%x buf[1]=0x%x",$time, wcount, rdwr_data_buf[0], rdwr_data_buf[1]);
+	    
+	    `endif
 	 end
+	`ifdef DEBUG_FX2 
+	 $display("%d getW: value=0x%x",$time, value);
+	`endif
       end
    endtask
 
