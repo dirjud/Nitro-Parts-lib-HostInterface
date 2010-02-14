@@ -119,26 +119,26 @@ module fx2
       input [7:0]  cmd;
       input [31:0] length;
       begin
-	 
-	 hics_b=1;
-	 repeat (50) @(posedge clk);
-	 hics_b=0;
-	 repeat (20) @(posedge clk);
-	 wbuf[0] = { 8'hc3, cmd };
-	 wbuf[1] = term_addr;
-	 wbuf[2] = reg_addr[15:0];
-	 wbuf[3] = reg_addr[31:16];
-	 wbuf[4] = length[15:0];
-	 wbuf[5] = length[31:16];
-	 wbuf[6] = 0; // reserved
-	 wbuf[7] = 16'haa55; // ack
-	 datao=wbuf[0];
-	 wend = 8;
-	 wptr = 0;
-	 rptr = 0;
-	 rdone = 0;
-	 
-	 repeat (3) @(posedge clk);
+         
+         hics_b=1;
+         repeat (50) @(posedge clk);
+         hics_b=0;
+         repeat (20) @(posedge clk);
+         wbuf[0] = { 8'hc3, cmd };
+         wbuf[1] = term_addr;
+         wbuf[2] = reg_addr[15:0];
+         wbuf[3] = reg_addr[31:16];
+         wbuf[4] = length[15:0];
+         wbuf[5] = length[31:16];
+         wbuf[6] = 0; // reserved
+         wbuf[7] = 16'haa55; // ack
+         datao=wbuf[0];
+         wend = 8;
+         wptr = 0;
+         rptr = 0;
+         rdone = 0;
+         
+         repeat (3) @(posedge clk);
       end
    endtask
 
@@ -151,8 +151,8 @@ module fx2
       input [31:0] reg_addr;
       output [15:0] value;
       begin
-	 read(term_addr,reg_addr, 2);
-	 value = { rdwr_data_buf[1], rdwr_data_buf[0] };
+         read(term_addr,reg_addr, 2);
+         value = { rdwr_data_buf[1], rdwr_data_buf[0] };
       end
    endtask
 
@@ -165,20 +165,20 @@ module fx2
       input [31:0] reg_addr;
       input [9:0] width;
       output [1023:0] value;
-      integer 	     wcount;
+      integer        wcount;
       begin
-	 value = 0;//clear out the return value first
-	 for(wcount=0; wcount<width; wcount=wcount+16) begin // loop through reg
-	    read(term_addr,reg_addr+(wcount/16), 2);
-	    value = value | ({ rdwr_data_buf[1], rdwr_data_buf[0] } << wcount);
-	    `ifdef DEBUG_FX2 
-	    $display("%d getW: wcount=%d buf[0]=0x%x buf[1]=0x%x",$time, wcount, rdwr_data_buf[0], rdwr_data_buf[1]);
-	    
-	    `endif
-	 end
-	`ifdef DEBUG_FX2 
-	 $display("%d getW: value=0x%x",$time, value);
-	`endif
+         value = 0;//clear out the return value first
+         for(wcount=0; wcount<width; wcount=wcount+16) begin // loop through reg
+            read(term_addr,reg_addr+(wcount/16), 2);
+            value = value | ({ rdwr_data_buf[1], rdwr_data_buf[0] } << wcount);
+            `ifdef DEBUG_FX2 
+            $display("%d getW: wcount=%d buf[0]=0x%x buf[1]=0x%x",$time, wcount, rdwr_data_buf[0], rdwr_data_buf[1]);
+            
+            `endif
+         end
+        `ifdef DEBUG_FX2 
+         $display("%d getW: value=0x%x",$time, value);
+        `endif
       end
    endtask
 
@@ -192,10 +192,10 @@ module fx2
       input [31:0] reg_addr;
       input [15:0] value;
       begin
-	 rdwr_data_cur=0; 
-	 rdwr_data_buf[0] = value[7:0];
-	 rdwr_data_buf[1] = value[15:8];
-	 write(term_addr,reg_addr,2);
+         rdwr_data_cur=0; 
+         rdwr_data_buf[0] = value[7:0];
+         rdwr_data_buf[1] = value[15:8];
+         write(term_addr,reg_addr,2);
       end
    endtask
 
@@ -205,12 +205,12 @@ module fx2
       input [31:0] reg_addr;
       input [9:0] width;
       input [1023:0] value;
-      integer 	     wcount;
+      integer        wcount;
       for(wcount=0; wcount<width; wcount=wcount+16) begin
-	 rdwr_data_cur=0; 
-	 rdwr_data_buf[0] = 8'hFF & (value >> wcount);
-	 rdwr_data_buf[1] = 8'hFF & (value >> (wcount+8));
-	 write(term_addr,reg_addr+(wcount/16),2);
+         rdwr_data_cur=0; 
+         rdwr_data_buf[0] = 8'hFF & (value >> wcount);
+         rdwr_data_buf[1] = 8'hFF & (value >> (wcount+8));
+         write(term_addr,reg_addr+(wcount/16),2);
       end
    endtask
 
@@ -223,27 +223,27 @@ module fx2
       input [31:0] reg_addr;
       input [31:0] length;
       begin
-	 _sendcmd( term_addr, reg_addr, 1, length ); 
-	 rxcount = 0;
-	 while(rxcount < length + 4) begin 
-	    if(rdone || (full_b==0)) begin 
+         _sendcmd( term_addr, reg_addr, 1, length ); 
+         rxcount = 0;
+         while(rxcount < length + 4) begin 
+            if(rdone || (full_b==0)) begin 
                repeat (10) @(posedge clk);
 
                for(i=0; i<rptr; i=i+1) begin 
-		  rdwr_data_buf[rxcount] = rbuf[i][7:0];
-		  rdwr_data_buf[rxcount+1] = rbuf[i][15:8];
-		  rxcount = rxcount + 2;
+                  rdwr_data_buf[rxcount] = rbuf[i][7:0];
+                  rdwr_data_buf[rxcount+1] = rbuf[i][15:8];
+                  rxcount = rxcount + 2;
                end 
                rdone = 0;
                rptr  = 0;
-	    end 
-	    @(posedge clk);
-	    
-	    //if(main_time >= timeout_time) {
-	    //  free(rx_data);                         
-	    //  throw Exception(USB_COMM, "Timed out");
-	    //}
-	 end 
+            end 
+            @(posedge clk);
+            
+            //if(main_time >= timeout_time) {
+            //  free(rx_data);                         
+            //  throw Exception(USB_COMM, "Timed out");
+            //}
+         end 
       end
    endtask
 
@@ -255,31 +255,31 @@ module fx2
       input [31:0] reg_addr;
       input [31:0] length;
       begin
-	 
-	 _sendcmd ( term_addr, reg_addr, 2, length );
-	 txcount = 0;
-	 
-	 while (txcount < length) begin
+         
+         _sendcmd ( term_addr, reg_addr, 2, length );
+         txcount = 0;
+         
+         while (txcount < length) begin
             while ( empty_b ) begin
-	       @(posedge clk);
+               @(posedge clk);
             end
-	    for (i=0;i<256 && txcount < length; i=i+1) begin
+            for (i=0;i<256 && txcount < length; i=i+1) begin
                wbuf[i] = { rdwr_data_buf[txcount+1] , rdwr_data_buf[txcount] };
                txcount = txcount + 2;
-	    end
-	    datao = wbuf[0];
-	    wptr = 0;
-	    wend = i;
+            end
+            datao = wbuf[0];
+            wptr = 0;
+            wend = i;
 
-	    repeat(4) @(posedge clk);
-	 end
+            repeat(4) @(posedge clk);
+         end
 
-	 // wait for ack
-	 while (rptr < 4) begin
-	    @(posedge clk);
-	 end
-	 
-	 repeat (10) @(posedge clk);
+         // wait for ack
+         while (rptr < 4) begin
+            @(posedge clk);
+         end
+         
+         repeat (10) @(posedge clk);
       end
    endtask
 
@@ -338,7 +338,7 @@ private:
     if(timeout == 0) { 
       timeout_time = UINT_MAX;
     } else {
-      timeout_time = main_time + (timeout * 1000); // this scale factor is arbitrary
+      timeout_time = main_time + (timeout * 1000000);
     }
     return timeout_time;
   }
@@ -349,7 +349,7 @@ protected:
     uint32_t timeout_time = get_timeout_time(timeout);
     if(reg_addr == 4 and terminal_addr == 6) {// hack to pass firmware version
        return DataType( static_cast<uint32>(512));
-    }					      
+    }                                         
     _read(terminal_addr, reg_addr, (uint8*) (&val), 2, timeout);
     return DataType( static_cast<uint32>((uint32) val));
   }
@@ -400,7 +400,7 @@ protected:
     }
     // check status word
     if(ack_buf[2] != 0) {
-      int err = ack_buf[2];			 
+      int err = ack_buf[2];                      
       free(rx_data);
       sprintf(msg, "Non-zero ACK status 0x%x (%d) returned.", err, err);
       throw Exception(USB_COMM, msg, err);
