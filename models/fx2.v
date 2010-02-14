@@ -77,7 +77,7 @@ module fx2
 
       full_b = !(rptr > 255-4);
       if(!slwr_b && (rptr <= 255)) begin
-         rbuf[rptr] <= fd_in;
+         rbuf[rptr[7:0]] <= fd_in;
          rptr <= rptr + 1;
       end
 
