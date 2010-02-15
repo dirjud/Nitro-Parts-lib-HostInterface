@@ -50,8 +50,8 @@ module fx2
    reg empty_b            /* verilator public */;
    reg full_b             /* verilator public */;
 
-   assign SCL = 1'bz;
-   assign SDA = 1'bz;
+   pullup p1(SCL);
+   pullup p2(SDA);
 
    assign fx2_ifclk  = !clk; // invert clk
    assign fx2_clkout = clk;
