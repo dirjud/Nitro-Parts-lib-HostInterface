@@ -192,6 +192,8 @@ module HostInterface
    // synthesis attribute IOB of fx2_slcs_b    is "TRUE";
    // synthesis attribute IOB of fx2_sloe_b    is "TRUE";
    // synthesis attribute IOB of fx2_pktend_b  is "TRUE";
+   // synthesis attribute IOB of flags         is "TRUE";
+   // synthesis attribute IOB of fd_in         is "TRUE";
    
    wire [31:0] transfer_len;
    reg [2:0] flags;
