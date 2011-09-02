@@ -235,7 +235,8 @@ module HostInterface
    wire [15:0] cmd     = cmd_buf[0];
    assign di_term_addr     = cmd_buf[1];
    reg [15:0] checksum, status;
-
+   reg [1:0]  wait_count;
+   
    wire       read_ok_from_fx2_fifo = !fx2_slrd_b && empty_b;
 
 
@@ -268,7 +269,7 @@ module HostInterface
 	 cmd_buf[3] <= 0;
 	 cmd_buf[4] <= 0;
 	 cmd_buf[5] <= 0;
-	 
+	 wait_count <= 0;
 	 
       end else begin
          di_read_mode     <= ((state == PROCESS_CMD) || (state == SEND_ACK)) && (cmd == READ_CMD);
@@ -319,6 +320,7 @@ module HostInterface
 		 // pull us out of the idle state.
                  fx2_sloe_b    <= 0; // FX2 drives the bus when idle
                  fx2_slrd_b    <= 1; // No read enable yet
+		 wait_count    <= 0;
                  fx2_slwr_b    <= 1; // No write enable
                  fx2_pktend_b  <= 1; // No write enable
                  fx2_fifo_addr <= WRITE_EP;
@@ -327,6 +329,7 @@ module HostInterface
               end
               
               RCV_CMD: begin
+		 wait_count <= 0;
                  if(fx2_slrd_b) begin
                     if(empty_b) begin
                        fx2_slrd_b <= 0;         // assert read enable
@@ -436,21 +439,23 @@ module HostInterface
                          
                       end else begin
                          fx2_fifo_addr <= WRITE_EP;
-                         if(fx2_slrd_b) begin
+			 if(wait_count >= 2) begin
                             if(empty_b && di_write_rdy) begin
-                               fx2_slrd_b   <= 0;       // assert read enable
+                               fx2_slrd_b <= 0;       // assert read enable
+			       wait_count <= 0;
                             end
                          end else begin
-                            fx2_slrd_b      <= 1; // deassert read enable
+                            fx2_slrd_b <= 1; // deassert read enable
+			    wait_count <= wait_count + 1;
                          end
 
 			 // Write data only if the empty signal is not
-			 // asserted.  The fx2_slrd_b above can
-			 // actually clock out too much data due to
-			 // sampling the empty signal.  So this only
-			 // writes data into the FPGA if the empty
-			 // flag was not asserted when the fx2_slrd
-			 // read request was made.
+			 // asserted.  If wait_count == 1, the
+			 // fx2_slrd_b above can actually clock out
+			 // too much data due to sampling the empty
+			 // signal.  So this only writes data into the
+			 // FPGA if the empty flag was not asserted
+			 // when the fx2_slrd read request was made.
 			 if(read_ok_from_fx2_fifo) begin 
                             di_write     <= 1;
                             di_reg_datai <= fd_in;   // sample the data
