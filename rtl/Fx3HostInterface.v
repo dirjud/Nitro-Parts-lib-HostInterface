@@ -356,7 +356,8 @@ module HostInterface
                        state  <= PROCESS_CMD;
                        tcount <= 0;
 		       bcount <= 0;
-                       di_reg_addr  <= cmd_buf[2];
+		       wait_for_next_buffer <= 1;
+                       di_reg_addr  <= (cmd == WRITE_CMD) ? cmd_buf[2] - 1 : cmd_buf[2];
                        di_len       <= cmd_buf[3];
                     end
                  end
@@ -419,7 +420,16 @@ module HostInterface
 			  end
 
                        end else begin
-
+			  if(wait_for_next_buffer) begin
+			     
+			  end else begin
+			     if(full_b && di_read_rdy) begin
+				di_read <= 1;
+				
+				
+			     end
+			  end
+			  
                           if(full_b && di_read_rdy && !di_read) begin
                           //if(full_b && di_read_rdy) begin
                              di_read           <= 1;
@@ -434,51 +444,53 @@ module HostInterface
                     end
                    
                    WRITE_CMD: begin
-                      
-                      if(!di_write_mode) begin
-                         fx3_fifo_addr          <= WRITE_EP;
-                         fx3_sloe_b          <= 0; //  FX3 drives the bus
+                      if(!di_write_mode) begin // first cycle of write mode
+                         fx3_fifo_addr <= WRITE_EP;
+                         fx3_sloe_b    <= 0; //  FX3 drives the bus
                       end else if(tcount >= di_len) begin // we're done
-                         fx3_slrd_b         <= 1;
-                         di_write           <= 0;
+                         fx3_slrd_b    <= 1;
+                         di_write      <= 0;
                          if(di_write_rdy) begin// wait for last write to finish
-                            tcount <= 0;
-                            state <= SEND_ACK;
+                            tcount     <= 0;
+                            state      <= SEND_ACK;
                          end
-                         
                       end else begin
                          fx3_fifo_addr <= WRITE_EP;
-			 if(wait_count >= 2) begin
-                            if(empty_b && di_write_rdy) begin
-                               fx3_slrd_b <= 0;       // assert read enable
-			       wait_count <= 0;
-                            end
-                         end else begin
-                            fx3_slrd_b <= 1; // deassert read enable
-			    wait_count <= wait_count + 1;
-                         end
-
-			 // Write data only if the empty signal is not
-			 // asserted.  If wait_count == 1, the
-			 // fx3_slrd_b above can actually clock out
-			 // too much data due to sampling the empty
-			 // signal.  So this only writes data into the
-			 // FPGA if the empty flag was not asserted
-			 // when the fx3_slrd read request was made.
-			 if(read_ok_from_fx3_fifo) begin 
-                            di_write     <= 1;
-                            di_reg_datai <= fd_in;   // sample the data
+			 if(slrd_b_ss == 0) begin
                             checksum     <= checksum + fd_in; //calc checksum
                             tcount       <= next_tcount; // advance tcount
-			    if(tcount != 0) begin
-			       di_reg_addr <= di_reg_addr + 1;
-			    end
-			 end else begin
-			    di_write     <= 0;
 			 end
-                      end
+
+			 di_write     <= fifo_re;
+			 di_reg_datai <= fifo_rdata;
+			 if(fifo_re) begin
+			    di_reg_addr <= di_reg_addr + 1;
+			 end
+			 
+			 if(wait_for_next_buffer) begin
+			    // wait for the empty signal to go active
+			    // indicating that we can then wait for it
+			    // to go inactive again and start a
+			    // transfer.
+			    if(empty_b == 0) begin
+			       wait_for_next_buffer <= 0;
+			    end
+			    bcount <= 0;
+			 end else begin
+			    // wait for empty signal to go inactive.
+			    if(!empty_b) begin
+			       bcount <= next_bcount;
+			       if(next_bcount >= buffer_length) begin
+				  wait_for_next_buffer <= 1;
+				  fx3_slrd_b <= 1;
+			       end else begin
+				  fx3_slrd_b <= fifo_full;// only clock data out when fifo has room.
+			       end
+			    end
+			 end
+		      end
                    end
-                   
+                      
                    default: begin
                       state <= IDLE;
                    end
@@ -489,18 +501,26 @@ module HostInterface
       end
    end
 
-   fx3_wfifo fx3_wfifo
+   wire fifo_re = !empty && di_write_rdy;
+   wire fifo_we = di_write_mode && (slrd_b_ss == 0);
+   
+   fx3_fifo fx3_fifo
      (.clk(clk),
-      .resetb(resetb),
-      .we(wfifo_we),
+      .resetb(di_write_mode),
+      .we(fifo_we),
       .wdata(fd_in),
       .re(di_write),
-      .rdata(di_
+      .rdata(fifo_rdata),
+      .full(fifo_full),
+      .empty(fifo_empty)
+      );
+   
      
    
 endmodule
 
-module fx3_wfifo
+module fx3_fifo
+  #(parameter LOG2_DEPTH=2)
   (
    input clk,
    input resetb,
@@ -512,4 +532,47 @@ module fx3_wfifo
    output empty
    );
 
+   
+   reg [31:0] data[0:(1<<DEPTH)-1];
+   reg [LOG2_DEPTH-1:0] waddr, raddr, count;
+   wire [LOG2_DEPTH-1:0] next_waddr <= waddr + 1;
+   wire [LOG2_DEPTH-1:0] next_raddr <= raddr + 1;
+
+   rdata = data[raddr];
+
+   assign full = count >= 1;
+   assign empty = count == 0;
+   
+   always@(posedge clk) begin
+      if(!resetb) begin
+	 waddr <= 0;
+	 raddr <= 0;
+	 empty <= 1;
+	 count <= 0;
+      end else begin
+	 if(we) begin
+	    data[waddr] <= wdata;
+	    if(re || !full) begin
+	       waddr <= next_waddr;
+	    end
+	 end
+	 if(re) begin
+	    if(we || !empty) begin
+	       raddr <= next_raddr;
+	    end
+	 end
+
+	 // update empty and full flags
+	 if(we || re) begin
+	    if(we && re) begin
+	       // empty and full flags don't change when re and we happen
+	       // simultanesouly
+	    end else if(re) begin
+	       count <= count - 1;
+	    end else begin
+	       count <= count + 1;
+	    end
+	 end
+      end
+   end
 endmodule
