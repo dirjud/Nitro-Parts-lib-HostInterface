@@ -19,63 +19,94 @@
 
 module fx3
   (
-   input clk,
+   input 	 clk,
    
-   output fx3_ifclk,
-   output fx3_clkout,
+   output 	 fx3_ifclk,
+   output 	 fx3_clkout,
    
-   output fx3_hics_b,
-   output [2:0] fx3_flags,
-   input fx3_sloe_b,
-   input fx3_slrd_b,
-   input fx3_slwr_b,
-   input fx3_slcs_b,
-   input fx3_pktend_b,
-   input [1:0] fx3_fifo_addr,
-   inout [15:0] fx3_fd,
+   output 	 fx3_hics_b,
+//   output [2:0] fx3_flags,
+   output 	 fx3_dma_rdy,
+   input 	 fx3_sloe_b,
+   input 	 fx3_slrd_b,
+   input 	 fx3_slwr_b,
+   input 	 fx3_slcs_b,
+   input 	 fx3_pktend_b,
+   input [1:0] 	 fx3_fifo_addr,
+   input [31:0]  fx3_fd_in,
+   output [31:0] fx3_fd_out,
+   output 	 fx3_fd_oe,
    
-   inout SCL,
-   inout SDA
+   inout 	 SCL,
+   inout 	 SDA
    );
 
    reg sloe_b;
    reg hics_b             /* verilator public */;
-   reg [15:0] rbuf[0:255] /* verilator public */;
+   reg [31:0] rbuf[0:255] /* verilator public */;
    reg [8:0]  rptr        /* verilator public */;
    reg rdone              /* verilator public */;
-   reg [15:0] wbuf[0:255] /* verilator public */;
+   reg [31:0] wbuf[0:255] /* verilator public */;
+   reg [31:0] cbuf[0:3]   /* verilator public */;
    reg [8:0]  wptr        /* verilator public */;
    reg [8:0]  wend        /* verilator public */;
-   reg [15:0] datao       /* verilator public */;
    reg empty_b            /* verilator public */;
+   reg cmd_empty_b        /* verilator public */;
+   reg [2:0] cmd_ptr  /* verilator public */ = 4;
    reg full_b             /* verilator public */;
+   reg [31:0] datao;
+   reg [31:0] cmd_datao;
 
    pullup p1(SCL);
    pullup p2(SDA);
 
+   reg [1:0] fifo_addr;
    assign fx3_ifclk  = !clk; // invert clk
    assign fx3_clkout = clk;
    assign fx3_hics_b = hics_b;
    
-   wire slrd_b    = fx3_slrd_b | (fx3_fifo_addr != 0);
-   wire slwr_b    = fx3_slwr_b | (fx3_fifo_addr != 2);
+   wire        wfifo_active    = fifo_addr == 3;
+   wire        rfifo_active    = fifo_addr == 0;
+   wire        cmd_fifo_active = fifo_addr == 1;
 
-   wire [15:0] datao1 = (fx3_fifo_addr == 0) ? datao : 0;
+   wire        slwr_b    = !(!fx3_slwr_b && rfifo_active);
 
-   assign fx3_flags = { 1'b0, full_b, empty_b };
-   assign fx3_fd = (sloe_b) ? 16'hZZZZ : datao1;
-   wire [15:0] fd_in = fx3_fd;
+   reg [31:0]  datao1;
+   
+
+//   assign fx3_flags = { 1'b0, full_b, empty_b };
+   
+   assign fx3_dma_rdy = wfifo_active    ? !empty_b :
+			cmd_fifo_active ? !cmd_empty_b :
+			rfifo_active    ? !full_b :
+			1'b1;
+
+//   assign fx3_fd = (sloe_b) ? 16'hZZZZ : datao1;
+   assign fx3_fd_out = datao1;
+   assign fx3_fd_oe  = !sloe_b;
+   
+   wire [31:0] fd_in = fx3_fd_in;
    
    always @(posedge clk) begin
-      sloe_b  <= fx3_sloe_b;
+      fifo_addr <= fx3_fifo_addr;
+      sloe_b    <= fx3_sloe_b;
       
-      empty_b <= !((wptr >= wend) || (!slrd_b && wptr+1 == wend));
-      if(!slrd_b && (wptr <= wend)) begin
+      empty_b <= !(wptr >= wend);
+      if(!fx3_slrd_b && wfifo_active) begin
          wptr  <= wptr + 1;
-         datao <= wbuf[wptr + 1];
+         datao <= wbuf[wptr[7:0]];
       end
 
-      full_b = !(rptr > 255-4);
+      cmd_empty_b <= !(cmd_ptr >= 4);
+      if(!fx3_slrd_b && cmd_empty_b && cmd_fifo_active) begin
+	 cmd_ptr <= cmd_ptr+1;
+         cmd_datao <= cbuf[cmd_ptr[1:0]];
+      end
+
+      datao1 <= wfifo_active    ? datao : 
+	        cmd_fifo_active ? cmd_datao : 0;
+      
+      full_b = !(rptr > 255);
       if(!slwr_b && (rptr <= 255)) begin
          rbuf[rptr[7:0]] <= fd_in;
          rptr <= rptr + 1;
@@ -132,7 +163,6 @@ module fx3
          wbuf[5] = length[31:16];
          wbuf[6] = 0; // reserved
          wbuf[7] = 16'haa55; // ack
-         datao=wbuf[0];
          wend = 8;
          wptr = 0;
          rptr = 0;
@@ -267,7 +297,6 @@ module fx3
                wbuf[i] = { rdwr_data_buf[txcount+1] , rdwr_data_buf[txcount] };
                txcount = txcount + 2;
             end
-            datao = wbuf[0];
             wptr = 0;
             wend = i;
 
@@ -289,223 +318,18 @@ module fx3
 /***********************************************************/
 
  `systemc_header
-#ifndef FX3_H
-#define FX3_H
-
-#include "verilated.h"
-#include "nitro.h"
-#include <limits.h>
-
-using namespace Nitro;
-enum {
-  READ_CMD=1,
-  WRITE_CMD=2
-};
-
-extern void advance_clk(unsigned int cycles);
-extern unsigned int main_time;
-
-class FX3Device : public Device {
-private:
-
-   
-    void send_cmd(int cmd, int term, int reg, int len) {
-
-    *hics_b  = 1;
-    advance_clk(50);
-    *hics_b  = 0;
-    advance_clk(20);
-
-    wbuf[0] = 0xC300 | (cmd & 0xFF);
-    wbuf[1] = term;
-    wbuf[2] = reg & 0xFFFF;
-    wbuf[3] = (reg >> 16) & 0xFFFF;
-    wbuf[4] = len & 0xFFFF;
-    wbuf[5] = (len >> 16) & 0xFFFF;
-    wbuf[6]= 0;
-    wbuf[7]= 0xAA55;
-    *datao  = wbuf[0];
-    *wend   = 8;
-    *wptr   = 0;
-    *rptr   = 0;
-    *rdone  = 0;
-
-    advance_clk(20);
-  }
-
-  uint32_t get_timeout_time(uint32_t timeout) {
-    uint32_t timeout_time;
-    if(timeout == 0) { 
-      timeout_time = UINT_MAX;
-    } else {
-      timeout_time = main_time + (timeout * 1000000);
-    }
-    return timeout_time;
-  }
-
-protected:
-  DataType _get(uint32 terminal_addr, uint32 reg_addr, uint32 timeout ) {
-    uint16 val;
-    uint32_t timeout_time = get_timeout_time(timeout);
-    if(reg_addr == 4 and terminal_addr == 6) {// hack to pass firmware version
-       return DataType( static_cast<uint32>(512));
-    }                                         
-    _read(terminal_addr, reg_addr, (uint8*) (&val), 2, timeout);
-    return DataType( static_cast<uint32>((uint32) val));
-  }
-
-  void _read( uint32 terminal_addr, uint32 reg_addr, uint8* data, size_t length, uint32 timeout ) {
-    uint32_t timeout_time = get_timeout_time(timeout);
-    send_cmd(READ_CMD, terminal_addr, reg_addr, length);
-    advance_clk(1);
-
-    size_t rx_count = 0;
-    uint16 *rx_data = (uint16 *) malloc(length + 8);
-
-    while(rx_count < length/2 + 4) {
-      if(*rdone || (*full_b==0)) {
-        advance_clk(10);
-        for(int pos=0; pos<*rptr; pos++) {
-          rx_data[rx_count] = rbuf[pos];
-          rx_count++;
-        }
-        *rdone = 0;
-        *rptr  = 0;
-      }
-      advance_clk(1);
-      if(main_time >= timeout_time) {
-        free(rx_data);                         
-        throw Exception(USB_COMM, "Timed out");
-      }
-    }
-    // copy rx_data into data buffer and separate out the training ack
-    uint16 checksum=0;
-    for(int pos=0; pos<length/2; pos++) {
-       ((uint16*)data)[pos] = rx_data[pos];
-       checksum += rx_data[pos];       
-    }
-
-    uint16 *ack_buf = rx_data + length/2;
-    char msg[256];
-    if(ack_buf[0] != 0xA50F) {
-      free(rx_data);                           
-      throw Exception(USB_COMM, "Unexpected ack code returns");
-    }
-    // check checksum
-    checksum = checksum & 0xFFFF;
-    if(ack_buf[1] != checksum) {
-      free(rx_data);                           
-      sprintf(msg, "Checksum mismatch: 0x%04x/0x%04x", ack_buf[1], checksum);
-      throw Exception(USB_COMM, msg);
-    }
-    // check status word
-    if(ack_buf[2] != 0) {
-      int err = ack_buf[2];                      
-      free(rx_data);
-      sprintf(msg, "Non-zero ACK status 0x%x (%d) returned.", err, err);
-      throw Exception(USB_COMM, msg, err);
-    }
-
-    advance_clk(1);
-    free(rx_data);                             
-  }
-
-  void _set(uint32 terminal_addr, uint32 reg_addr, const DataType& type, uint32 timeout ) {
-    uint16 data = (uint16) static_cast<uint32>(type);
-    _write(terminal_addr, reg_addr, (uint8*) (&data), 2, timeout);
-  }
-
-  void _write( uint32 terminal_addr, uint32 reg_addr, const uint8* data, size_t length, uint32 timeout ) {
-    uint32_t timeout_time = get_timeout_time(timeout);
-    unsigned int checksum = 0;
-    send_cmd(WRITE_CMD, terminal_addr, reg_addr, length);
-    advance_clk(1);
-    // wait for the command buffer to empty
-    while(*empty_b) {
-      advance_clk(1);
-      if(main_time >= timeout_time) {
-        throw Exception(USB_COMM, "Timed out sending command.");
-      }
-    }
-
-    // write the data
-    size_t tx_count = 0;
-    while(tx_count < length) {
-      if(*wptr >= *wend) {
-        advance_clk(10);
-        // fill the tx buffer
-        int i;
-        for(i=0; (i<256) && (tx_count<length); i++) {
-          wbuf[i] = data[tx_count] + (data[tx_count + 1] << 8);
-          checksum += wbuf[i];                                       
-          //printf("wbuf[%d]=0x%x\n", i, wbuf[i]);
-          tx_count += 2;
-        }
-        *datao = wbuf[0];
-        *wptr = 0;
-        *wend = i;
-      }
-      advance_clk(1);
-      if(main_time >= timeout_time) {
-        throw Exception(USB_COMM, "Timed out waiting transfer");
-      }
-    }
-
-    // wait for ack
-    while(*rptr < 4) {
-      advance_clk(1);
-      if(main_time >= timeout_time) {
-        throw Exception(USB_COMM, "Timed out waiting for ack");
-      }
-    }
-    // check ack
-    *rptr = 0;
-
-    char msg[256];
-    if(rbuf[0] != 0xA50F) {
-      throw Exception(USB_COMM, "Unexpected ack code returns");
-    }
-    // check checksum
-    checksum = checksum & 0xFFFF;
-    if(rbuf[1] != checksum) {
-      sprintf(msg, "Checksum mismatch: 0x%04x/0x%04x", rbuf[1], checksum);
-      throw Exception(USB_COMM, msg);
-    }
-    // check status word
-    if(rbuf[2] != 0) {
-      sprintf(msg, "Non-zero ACK status 0x%x (%d) returned.", rbuf[2], rbuf[2]);
-      throw Exception(USB_COMM, msg, rbuf[2]);
-    }
-
-    advance_clk(3);
-
-  }
-
-
-  void _close() {}
-  
- public:
-  
-  FX3Device() {}
-  ~FX3Device() throw() {}
-  
-  SData *wbuf, *rbuf, *wptr, *rptr, *wend, *datao;
-  CData *rdone, *hics_b, *full_b, *empty_b;
-  
-
-};
-#endif
-
+#include "../../../../lib/HostInterface/models/fx3_verilator.cpp"
  `systemc_interface
    FX3Device *fx3_dev;    // Pointer to object we are embedding
  `systemc_ctor
    fx3_dev = new FX3Device(); // Construct contained object
+   fx3_dev->cbuf = cbuf;
    fx3_dev->wbuf = wbuf;
    fx3_dev->rbuf = rbuf;
    fx3_dev->wptr = &wptr;
    fx3_dev->rptr = &rptr;
+   fx3_dev->cmd_ptr = &cmd_ptr;
    fx3_dev->wend = &wend;
-   fx3_dev->datao= &datao;
    fx3_dev->rdone= &rdone;
    fx3_dev->hics_b= &hics_b;
    fx3_dev->full_b= &full_b;

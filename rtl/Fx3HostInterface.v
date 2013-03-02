@@ -152,34 +152,42 @@
  */
 
 
-module HostInterface
+module Fx3HostInterface
   (
-   input wire ifclk,
-   input wire resetb,
+   input wire 	     ifclk,
+   input wire 	     resetb,
 
-   input wire fx3_hics_b,
-   input [2:0] fx3_flags,
-   output reg fx3_sloe_b,
-   output reg fx3_slrd_b,
-   output reg fx3_slwr_b,
-   output reg fx3_slcs_b,
-   output reg fx3_pktend_b,
-   output reg [1:0] fx3_fifo_addr,
-   inout [31:0] fx3_fd,
+   input wire 	     fx3_hics_b,
+   input 	     fx3_dma_rdy_b,
+   output reg 	     fx3_sloe_b,
+   output reg 	     fx3_slrd_b,
+   output reg 	     fx3_slwr_b,
+   output reg 	     fx3_slcs_b,
+   output reg 	     fx3_pktend_b,
+   output reg [1:0]  fx3_fifo_addr,
+   input [31:0]      fx3_fd_in,
+   output [31:0]     fx3_fd_out,
+   output 	     fx3_fd_oe,
+//   inout [31:0]      fx3_fd,
    
-   output     [15:0] di_term_addr,
+   output [15:0]     di_term_addr,
    output reg [31:0] di_reg_addr,
-   output reg [31:0] di_len,
+   output [31:0]     di_len,
 
-   output reg        di_read_mode,
-   output reg        di_read_req,
-   output reg        di_read,
-   input wire        di_read_rdy,
-   input      [31:0] di_reg_datao,
+   output reg 	     di_read_mode,
+   output reg 	     di_read_req,
+   output reg 	     di_read,
+   input wire 	     di_read_rdy,
+   input [31:0]      di_reg_datao,
 
-   output reg        di_write,
-   input wire        di_write_rdy,
-   output reg        di_write_mode,
+   output [31:0]     cmdbuf0,
+   output [31:0]     cmdbuf1,
+   output [31:0]     cmdbuf2,
+   output [31:0]     cmdbuf3,
+
+   output reg 	     di_write,
+   input wire 	     di_write_rdy,
+   output reg 	     di_write_mode,
    output reg [31:0] di_reg_datai,
    input [15:0]      di_transfer_status
    );
@@ -192,34 +200,39 @@ module HostInterface
    // synthesis attribute IOB of fx3_slcs_b    is "TRUE";
    // synthesis attribute IOB of fx3_sloe_b    is "TRUE";
    // synthesis attribute IOB of fx3_pktend_b  is "TRUE";
-   // synthesis attribute IOB of flags         is "TRUE";
+   // synthesis attribute IOB of fx3_dma_rdy_b is "TRUE";
    // synthesis attribute IOB of fd_in         is "TRUE";
    
    wire [31:0] transfer_len;
-   reg [2:0] flags;
-   wire  empty_b     = flags[0];
-   wire  full_b      = flags[1];
    reg  cmd_start;
-
+   reg 	dma_rdy_b;
+   wire dma_rdy = !dma_rdy_b;
    reg [31:0] fd_in, fd_out;
    reg [31:0] cmd_buf[0:3];
-   wire [31:0] fx3_fd_in =fx3_fd;
-   assign fx3_fd = (fx3_sloe_b) ? fd_out : 32'hZZZZZZZZ;
+   assign cmdbuf0 = cmd_buf[0];
+   assign cmdbuf1 = cmd_buf[1];
+   assign cmdbuf2 = cmd_buf[2];
+   assign cmdbuf3 = cmd_buf[3];
+   
+//   assign fx3_fd = (fx3_sloe_b) ? fd_out : 32'hZZZZZZZZ;
+   assign fx3_fd_oe = fx3_sloe_b;
+   assign fx3_fd_out = fd_out;
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
-         flags <= 0;
+         dma_rdy_b <= 0;
          fd_in <= 0;
          cmd_start <= 1;
 	 fx3_slcs_b <= 0;
       end else begin
-         flags <= fx3_flags;
+         dma_rdy_b <= fx3_dma_rdy_b;
          fd_in <= fx3_fd_in;
          cmd_start <= fx3_hics_b;
       end
    end
    
-   parameter [1:0] WRITE_EP = 0;
-   parameter [1:0] READ_EP  = 3;
+   parameter [1:0] WRITE_EP = 3;
+   parameter [1:0] CMD_EP   = 1;
+   parameter [1:0] READ_EP  = 0;
    parameter 
      IDLE          = 0,
      RCV_CMD       = 1,
@@ -227,24 +240,32 @@ module HostInterface
      SEND_ACK      = 3;
    reg [1:0] state;
    reg [31:0] tcount; // transfer count
-   wire [31:0] next_tcount = tcount + 1;
+   wire [31:0] next_tcount = tcount + 4;
 
    reg [11:0] bcount; // buffer count  
-   wire [11:0] next_bcount = bcount + 1;
+   wire [11:0] next_bcount = bcount + 4;
  
    parameter [15:0] READ_CMD = 16'hC301;
    parameter [15:0] WRITE_CMD= 16'hC302;
-  
-   wire [15:0] cmd           = cmd_buf[0][15:0];
-   wire [15:0] buffer_length = cmd_buf[0][31:16];
-   assign di_term_addr       = cmd_buf[1][15:0];
+   wire [31:0] di_starting_reg_addr;
+   
+   wire [15:0] cmd             = cmd_buf[0][15:0];
+   wire [11:0] buffer_length   = cmd_buf[0][27:16];
+   assign di_term_addr         = cmd_buf[1][15:0];
+   // cmd_buf[1][31:16] is unused
+   assign di_starting_reg_addr = cmd_buf[2];
+   assign di_len               = cmd_buf[3];
+
    reg [15:0] checksum, status;
-   reg [1:0]  wait_count;
    reg 	      slrd_b_s, slrd_b_ss;
    
-   wire       read_ok_from_fx3_fifo = !slrd_b_s && empty_b;
-
-
+   wire       write_in_process =  !fx3_slrd_b || !slrd_b_s || !slrd_b_ss || di_write;
+   wire       latch_fd_in = !slrd_b_ss;
+   reg 	      wait_for_next_buffer;
+   wire [31:0] fifo_rdata;
+   wire        fifo_full, fifo_empty;
+   
+   
    
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
@@ -257,7 +278,6 @@ module HostInterface
          tcount           <= 0;
          bcount           <= 0;
          di_reg_datai     <= 0;
-	 di_len           <= 0;
 	 di_reg_addr      <= 0;
          
          fx3_sloe_b       <= 0; // FX3 drives the bus when reset
@@ -273,10 +293,9 @@ module HostInterface
 	 cmd_buf[1] <= 0;
 	 cmd_buf[2] <= 0;
 	 cmd_buf[3] <= 0;
-	 wait_count <= 0;
 	 slrd_b_s   <= 1;
 	 slrd_b_ss  <= 1;
-	 
+	 wait_for_next_buffer <= 0;
 	 
       end else begin
          di_read_mode     <= ((state == PROCESS_CMD) || (state == SEND_ACK)) && (cmd == READ_CMD);
@@ -300,7 +319,7 @@ module HostInterface
             fx3_slrd_b    <= 1; // No read enable yet
             fx3_slwr_b    <= 1; // No write enable
             fx3_pktend_b  <= 1; // No write enable
-            fx3_fifo_addr <= WRITE_EP;
+            fx3_fifo_addr <= CMD_EP;
             checksum      <= 0;
 
             di_read_mode  <= 0;
@@ -309,7 +328,6 @@ module HostInterface
             di_read       <= 0;
             di_read_req   <= 0;
             di_reg_datai  <= 0;
-	    di_len        <= 0;
 	    di_reg_addr   <= 0;
 
             fd_out        <= 0;
@@ -329,62 +347,66 @@ module HostInterface
 		 // pull us out of the idle state.
                  fx3_sloe_b    <= 0; // FX3 drives the bus when idle
                  fx3_slrd_b    <= 1; // No read enable yet
-		 wait_count    <= 0;
                  fx3_slwr_b    <= 1; // No write enable
                  fx3_pktend_b  <= 1; // No write enable
-                 fx3_fifo_addr <= WRITE_EP;
+                 fx3_fifo_addr <= CMD_EP;
                  tcount        <= 0;
 		 bcount        <= 0;
                  checksum      <= 0;
               end
               
               RCV_CMD: begin
-		 wait_count <= 0;
-                 if(empty_b && (bcount[2:0] < 4)) begin
-                    fx3_slrd_b <= 0;         // assert read enable
-		    bcount <= next_bcount;
-                 end else begin
-		    fx3_slrd_b <= 1;
-		 end
-
-                 if(read_ok_from_fx3_fifo) begin
-		    if(tcount[2:0] < 6) // only using first 6 of 8 words in the cmd stream.
-                      cmd_buf[tcount[2:0]] <= fd_in; // sample the input 
-                    tcount <= next_tcount;      // advance the cmd buf addr
-                 end else begin
-                    if(tcount[3:0] >= 8) begin
+                 if(tcount >= 16) begin // check if we are done
+		    if(!dma_rdy) begin // wait to switch states until the current dma buffer is done
                        state  <= PROCESS_CMD;
                        tcount <= 0;
 		       bcount <= 0;
-		       wait_for_next_buffer <= 1;
-                       di_reg_addr  <= (cmd == WRITE_CMD) ? cmd_buf[2] - 1 : cmd_buf[2];
-                       di_len       <= cmd_buf[3];
-                    end
-                 end
+		    end
+		    if (cmd == WRITE_CMD) begin
+                       di_reg_addr    <= di_starting_reg_addr - 1;
+                       fx3_fifo_addr  <= WRITE_EP;
+		    end else begin
+		       di_reg_addr    <= di_starting_reg_addr;
+		       fx3_fifo_addr  <= READ_EP;
+		    end
+
+                 end else begin
+                    if(dma_rdy && (bcount < 16)) begin
+                       fx3_slrd_b <= 0;         // assert read enable
+		       bcount <= next_bcount;
+                    end else begin
+		       fx3_slrd_b <= 1;
+		    end
+		    
+                    if(latch_fd_in) begin
+                       cmd_buf[tcount[3:2]] <= fd_in; // sample the input 
+                       tcount <= next_tcount;      // advance the cmd buf addr
+		    end
+		 end
               end
             
               SEND_ACK: begin // tcount should be zero upon entry
-                 fx3_fifo_addr <= READ_EP;
-                 
-                 if(fx3_sloe_b==0) begin
-                    fx3_sloe_b      <= 1; // we drive bus to send ack
-                 end else if(fx3_slwr_b) begin
-                    if (full_b) begin
-                        fx3_slwr_b      <= 0; // send the ack packet back
-                        tcount          <= tcount + 1;
-                        case(tcount)
-                          0: fd_out          <= { 16'hA50F, checksum };
-                          1: fd_out          <= { status,   16'h0000 };
-                          default:fd_out     <= di_reg_datao;
-                        endcase
-                    end
-                 end else begin
-                    fx3_slwr_b      <= 1;
-                    if(tcount >= 2) begin
-                       state           <= IDLE;
+                 fx3_sloe_b    <= 1; // we drive bus to send ack
+
+                 if (dma_rdy || (|tcount[1:0])) begin
+		    if(tcount[1:0] >= 2) begin
+                       fx3_slwr_b   <= 1;
+                       state        <= IDLE;
                        fx3_pktend_b <= 0; // commit the short packet.
-                    end
-                 end
+
+		    end else begin
+
+                       fx3_slwr_b <= 0; // send the ack packet back
+                       tcount     <= tcount + 1;
+                       case(tcount)
+			 0: fd_out <= { checksum, 16'hA50F };
+			 1: fd_out <= { 16'h0001, status   };
+			 default:fd_out <= 0;
+                       endcase
+                    end // else: !if(tcount[1:0] > 2)
+		 end else begin // if (dma_rdy || (|tcount[1:0]))
+                    fx3_slwr_b <= 1;
+		 end
               end
 
               PROCESS_CMD: begin
@@ -396,7 +418,7 @@ module HostInterface
                        fx3_slwr_b     <= !di_read;                       
                        if(di_read) begin
                           fd_out      <= di_reg_datao;
-                          checksum    <= checksum + di_reg_datao;//calc checksum
+                          checksum    <= checksum + di_reg_datao[15:0];//calc checksum
                        end
                        
                        if(!di_read_mode) begin // the first cycle of read_mode
@@ -406,7 +428,7 @@ module HostInterface
                           di_read              <= 0;
                           di_read_req          <= 0;
 
-                          if (!fx3_slwr_b && full_b) begin //send pktend after write completes and fifo is not full
+                          if (!fx3_slwr_b && dma_rdy) begin //send pktend after write completes and fifo is not full
                              if (|tcount[7:0]) begin // check if this transfer is a multiple of 256.  If so, we do not send the pckend signal
 				fx3_pktend_b <= 0; // commit the short packet.
 			     end else begin
@@ -423,14 +445,14 @@ module HostInterface
 			  if(wait_for_next_buffer) begin
 			     
 			  end else begin
-			     if(full_b && di_read_rdy) begin
+			     if(dma_rdy && di_read_rdy) begin
 				di_read <= 1;
 				
 				
 			     end
 			  end
 			  
-                          if(full_b && di_read_rdy && !di_read) begin
+                          if(dma_rdy && di_read_rdy && !di_read) begin
                           //if(full_b && di_read_rdy) begin
                              di_read           <= 1;
                              tcount            <= next_tcount;
@@ -444,51 +466,39 @@ module HostInterface
                     end
                    
                    WRITE_CMD: begin
-                      if(!di_write_mode) begin // first cycle of write mode
-                         fx3_fifo_addr <= WRITE_EP;
-                         fx3_sloe_b    <= 0; //  FX3 drives the bus
-                      end else if(tcount >= di_len) begin // we're done
-                         fx3_slrd_b    <= 1;
-                         di_write      <= 0;
-                         if(di_write_rdy) begin// wait for last write to finish
-                            tcount     <= 0;
-                            state      <= SEND_ACK;
-                         end
-                      end else begin
-                         fx3_fifo_addr <= WRITE_EP;
-			 if(slrd_b_ss == 0) begin
-                            checksum     <= checksum + fd_in; //calc checksum
-                            tcount       <= next_tcount; // advance tcount
-			 end
+                      fx3_sloe_b    <= 0; //  FX3 drives the bus
 
-			 di_write     <= fifo_re;
-			 di_reg_datai <= fifo_rdata;
-			 if(fifo_re) begin
-			    di_reg_addr <= di_reg_addr + 1;
-			 end
-			 
-			 if(wait_for_next_buffer) begin
-			    // wait for the empty signal to go active
-			    // indicating that we can then wait for it
-			    // to go inactive again and start a
-			    // transfer.
-			    if(empty_b == 0) begin
-			       wait_for_next_buffer <= 0;
-			    end
+		      if(tcount >= di_len) begin
+			 fx3_slrd_b <= 1;
+			 if(fifo_empty && !dma_rdy && !write_in_process) begin
+			    fx3_fifo_addr <= READ_EP;
+			    state <= SEND_ACK;
+			    tcount <= 0;
 			    bcount <= 0;
-			 end else begin
-			    // wait for empty signal to go inactive.
-			    if(!empty_b) begin
-			       bcount <= next_bcount;
-			       if(next_bcount >= buffer_length) begin
-				  wait_for_next_buffer <= 1;
-				  fx3_slrd_b <= 1;
-			       end else begin
-				  fx3_slrd_b <= fifo_full;// only clock data out when fifo has room.
-			       end
-			    end
+			 end
+		      end else if(dma_rdy && (bcount < buffer_length) && !fifo_full) begin
+			 fx3_slrd_b <= 0;
+			 bcount <= next_bcount;
+			 tcount <= next_tcount;
+                      end else begin
+			 fx3_slrd_b <= 1;
+			 if(!dma_rdy) begin
+			    bcount <= 0;
 			 end
 		      end
+
+		      if(latch_fd_in) begin
+                         checksum <= checksum + fd_in[15:0]; //calc checksum
+		      end
+
+		      if(!fifo_empty && di_write_rdy) begin
+			 di_write     <= 1;
+			 di_reg_addr  <= di_reg_addr + 1;
+			 di_reg_datai <= fifo_rdata;
+		      end else begin
+			 di_write <= 0;
+		      end
+
                    end
                       
                    default: begin
@@ -501,21 +511,19 @@ module HostInterface
       end
    end
 
-   wire fifo_re = !empty && di_write_rdy;
-   wire fifo_we = di_write_mode && (slrd_b_ss == 0);
+   wire fifo_re = !fifo_empty && di_write_rdy;
+   wire fifo_we = di_write_mode && latch_fd_in;
    
    fx3_fifo fx3_fifo
-     (.clk(clk),
+     (.clk   (ifclk),
       .resetb(di_write_mode),
-      .we(fifo_we),
-      .wdata(fd_in),
-      .re(di_write),
-      .rdata(fifo_rdata),
-      .full(fifo_full),
-      .empty(fifo_empty)
+      .we    (fifo_we),
+      .wdata (fd_in),
+      .re    (di_write),
+      .rdata (fifo_rdata),
+      .full  (fifo_full),
+      .empty (fifo_empty)
       );
-   
-     
    
 endmodule
 
@@ -533,21 +541,20 @@ module fx3_fifo
    );
 
    
-   reg [31:0] data[0:(1<<DEPTH)-1];
+   reg [31:0] data[0:(1<<LOG2_DEPTH)-1];
    reg [LOG2_DEPTH-1:0] waddr, raddr, count;
-   wire [LOG2_DEPTH-1:0] next_waddr <= waddr + 1;
-   wire [LOG2_DEPTH-1:0] next_raddr <= raddr + 1;
+   wire [LOG2_DEPTH-1:0] next_waddr = waddr + 1;
+   wire [LOG2_DEPTH-1:0] next_raddr = raddr + 1;
 
-   rdata = data[raddr];
+   assign rdata = data[raddr];
 
-   assign full = count >= 1;
-   assign empty = count == 0;
+   assign full = count > 1;
+   assign empty = ((count == 0) || (count == 1 && re)) && !we;
    
    always@(posedge clk) begin
       if(!resetb) begin
 	 waddr <= 0;
 	 raddr <= 0;
-	 empty <= 1;
 	 count <= 0;
       end else begin
 	 if(we) begin
