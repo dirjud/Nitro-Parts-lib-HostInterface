@@ -154,7 +154,7 @@ protected:
         for(i=0; (i<256) && (tx_count<length); i++) {
           wbuf[i] = data[tx_count] + (data[tx_count + 1] << 8) + (data[tx_count + 2] << 16) + (data[tx_count + 3] << 24);
           checksum += wbuf[i];                                       
-          printf("wbuf[%d]=0x%x txcount=%d\n", i, wbuf[i], tx_count);
+          //printf("wbuf[%d]=0x%x txcount=%d\n", i, wbuf[i], tx_count);
           tx_count += 4;
         }
         *wptr = 0;

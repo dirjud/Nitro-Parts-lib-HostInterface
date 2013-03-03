@@ -188,7 +188,7 @@ module Fx3HostInterface
    output reg 	     di_write,
    input wire 	     di_write_rdy,
    output reg 	     di_write_mode,
-   output reg [31:0] di_reg_datai,
+   output [31:0]     di_reg_datai,
    input [15:0]      di_transfer_status
    );
 
@@ -277,7 +277,7 @@ module Fx3HostInterface
          di_read_req      <= 0;
          tcount           <= 0;
          bcount           <= 0;
-         di_reg_datai     <= 0;
+//         di_reg_datai     <= 0;
 	 di_reg_addr      <= 0;
          
          fx3_sloe_b       <= 0; // FX3 drives the bus when reset
@@ -327,7 +327,7 @@ module Fx3HostInterface
             di_write      <= 0;
             di_read       <= 0;
             di_read_req   <= 0;
-            di_reg_datai  <= 0;
+//            di_reg_datai  <= 0;
 	    di_reg_addr   <= 0;
 
             fd_out        <= 0;
@@ -414,8 +414,8 @@ module Fx3HostInterface
                  case(cmd)
                     READ_CMD: begin
                        fx3_sloe_b     <= 1;     // We drive the bus
-                       fx3_fifo_addr  <= READ_EP;
                        fx3_slwr_b     <= !di_read;                       
+
                        if(di_read) begin
                           fd_out      <= di_reg_datao;
                           checksum    <= checksum + di_reg_datao[15:0];//calc checksum
@@ -423,45 +423,32 @@ module Fx3HostInterface
                        
                        if(!di_read_mode) begin // the first cycle of read_mode
                           di_read_req <= 1;
+                          di_read     <= 0;
                           
                        end else if(tcount >= di_len) begin // we're done
                           di_read              <= 0;
                           di_read_req          <= 0;
-
-                          if (!fx3_slwr_b && dma_rdy) begin //send pktend after write completes and fifo is not full
-                             if (|tcount[7:0]) begin // check if this transfer is a multiple of 256.  If so, we do not send the pckend signal
-				fx3_pktend_b <= 0; // commit the short packet.
-			     end else begin
-				tcount <= 0;
-				state  <= SEND_ACK; // no pktend necessary
-			     end
-                          end else if(!fx3_pktend_b) begin
-			     fx3_pktend_b <= 1;
-                             tcount <= 0;
-			     state  <= SEND_ACK;
-			  end
-
+			  fx3_pktend_b <= 1;
+			  bcount <= 0;
+			  tcount <= 0;
+			  state  <= SEND_ACK;
                        end else begin
-			  if(wait_for_next_buffer) begin
-			     
-			  end else begin
-			     if(dma_rdy && di_read_rdy) begin
-				di_read <= 1;
-				
-				
-			     end
-			  end
-			  
-                          if(dma_rdy && di_read_rdy && !di_read) begin
-                          //if(full_b && di_read_rdy) begin
-                             di_read           <= 1;
-                             tcount            <= next_tcount;
+			  if(dma_rdy && (bcount <= buffer_length) && di_read_rdy) begin
+			     di_read <= 1;
+			     bcount <= next_bcount;
+			     tcount <= next_tcount;
                              di_reg_addr       <= di_reg_addr + 1;
                              di_read_req       <= (next_tcount < di_len);
-                          end else begin
-                             di_read_req       <= 0;
-                             di_read           <= 0;
-                          end
+			     if (next_tcount >= di_len && next_bcount < buffer_length) begin
+				fx3_pktend_b <= 0; // indicate this is a short packet to end the transfer
+			     end
+			  end else begin
+			     di_read_req <= 0;
+			     di_read     <= 0;
+			     if(!dma_rdy) begin
+				bcount <= 0;
+			     end
+			  end
                        end
                     end
                    
@@ -494,7 +481,7 @@ module Fx3HostInterface
 		      if(!fifo_empty && di_write_rdy) begin
 			 di_write     <= 1;
 			 di_reg_addr  <= di_reg_addr + 1;
-			 di_reg_datai <= fifo_rdata;
+			 //di_reg_datai <= fifo_rdata;
 		      end else begin
 			 di_write <= 0;
 		      end
@@ -520,7 +507,7 @@ module Fx3HostInterface
       .we    (fifo_we),
       .wdata (fd_in),
       .re    (di_write),
-      .rdata (fifo_rdata),
+      .rdata (di_reg_datai), //(fifo_rdata),
       .full  (fifo_full),
       .empty (fifo_empty)
       );
