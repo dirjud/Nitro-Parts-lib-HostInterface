@@ -83,17 +83,19 @@ protected:
     advance_clk(1);
 
     size_t rx_count = 0;
-    uint16 *rx_data = (uint16 *) malloc(length + 8);
+    uint32 *rx_data = (uint32 *) malloc(length + 8);
 
-    while(rx_count < length/2 + 4) {
+    while(rx_count < length/4 + 2) {//include ack buffer
       if(*rdone || (*full_b==0)) {
-        advance_clk(10);
+        advance_clk(100);
         for(int pos=0; pos<*rptr; pos++) {
           rx_data[rx_count] = rbuf[pos];
+	  printf("RX 0x%04x: 0x%08x\n", rx_count, rx_data[rx_count]);
           rx_count++;
         }
         *rdone = 0;
         *rptr  = 0;
+        advance_clk(100);
       }
       advance_clk(1);
       if(main_time >= timeout_time) {
@@ -101,32 +103,37 @@ protected:
         throw Exception(USB_COMM, "Timed out");
       }
     }
-    // copy rx_data into data buffer and separate out the training ack
+    // copy rx_data into data buffer and separate out the ack
     uint16 checksum=0;
-    for(int pos=0; pos<length/2; pos++) {
-       ((uint16*)data)[pos] = rx_data[pos];
+    for(int pos=0; pos<length/4; pos++) {
+       ((uint32*)data)[pos] = rx_data[pos];
        checksum += rx_data[pos];       
     }
 
-    uint16 *ack_buf = rx_data + length/2;
+    ack_pkt_t *ack_pkt = (ack_pkt_t *) (rx_data + length/4);
+    printf("ACK PKT\n");
+    printf(" id       = 0x%04x\n", ack_pkt->id);
+    printf(" checksum = 0x%04x\n", ack_pkt->checksum);
+    printf(" status   = 0x%04x\n", ack_pkt->status);
+
+
     char msg[256];
-    if(ack_buf[0] != 0xA50F) {
+    if(ack_pkt->id != 0xA50F) {
       free(rx_data);                           
       throw Exception(USB_COMM, "Unexpected ack code returns");
     }
     // check checksum
     checksum = checksum & 0xFFFF;
-    if(ack_buf[1] != checksum) {
+    if(ack_pkt->checksum != checksum) {
       free(rx_data);                           
-      sprintf(msg, "Checksum mismatch: 0x%04x/0x%04x", ack_buf[1], checksum);
+      sprintf(msg, "Checksum mismatch: 0x%04x/0x%04x", ack_pkt->checksum, checksum);
       throw Exception(USB_COMM, msg);
     }
     // check status word
-    if(ack_buf[2] != 0) {
-      int err = ack_buf[2];                      
+    if(ack_pkt->status != 0) {
+      sprintf(msg, "Non-zero ACK status 0x%x (%d) returned.", ack_pkt->status, ack_pkt->status);
       free(rx_data);
-      sprintf(msg, "Non-zero ACK status 0x%x (%d) returned.", err, err);
-      throw Exception(USB_COMM, msg, err);
+      throw Exception(USB_COMM, msg, ack_pkt->status);
     }
 
     advance_clk(1);
@@ -195,7 +202,7 @@ protected:
     // check status word
     if(ack_pkt->status != 0) {
       sprintf(msg, "Non-zero ACK status 0x%x (%d) returned.", ack_pkt->status, ack_pkt->status);
-      throw Exception(USB_COMM, msg, rbuf[2]);
+      throw Exception(USB_COMM, msg, ack_pkt->status);
     }
 
     advance_clk(3);

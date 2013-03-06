@@ -106,7 +106,7 @@ module fx3
       datao1 <= wfifo_active    ? datao : 
 	        cmd_fifo_active ? cmd_datao : 0;
       
-      full_b = !(rptr > 255);
+      full_b <= !((rptr > 255) || rdone);
       if(!slwr_b && (rptr <= 255)) begin
          rbuf[rptr[7:0]] <= fd_in;
          rptr <= rptr + 1;

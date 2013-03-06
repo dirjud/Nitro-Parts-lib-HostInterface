@@ -184,7 +184,9 @@ module Fx3HostInterface
    output [31:0]     cmdbuf1,
    output [31:0]     cmdbuf2,
    output [31:0]     cmdbuf3,
-
+   output reg [15:0]     checksum,
+   output reg [15:0]     status,
+   
    output reg 	     di_write,
    input wire 	     di_write_rdy,
    output reg 	     di_write_mode,
@@ -256,7 +258,7 @@ module Fx3HostInterface
    assign di_starting_reg_addr = cmd_buf[2];
    assign di_len               = cmd_buf[3];
 
-   reg [15:0] checksum, status;
+//   reg [15:0] checksum, status;
    reg 	      slrd_b_s, slrd_b_ss;
    
    wire       write_in_process =  !fx3_slrd_b || !slrd_b_s || !slrd_b_ss || di_write;
@@ -264,8 +266,7 @@ module Fx3HostInterface
    reg 	      wait_for_next_buffer;
    wire [31:0] fifo_rdata;
    wire        fifo_full, fifo_empty;
-   
-   
+   reg 	       pktend;
    
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
@@ -283,7 +284,8 @@ module Fx3HostInterface
          fx3_sloe_b       <= 0; // FX3 drives the bus when reset
          fx3_slrd_b       <= 1; // No read enable yet
          fx3_slwr_b       <= 1; // No write enable
-         fx3_pktend_b     <= 1; // No write enable
+         fx3_pktend_b     <= 1;
+         pktend           <= 0;
          fx3_fifo_addr    <= 2'b11;
 
          fd_out           <= 0;
@@ -318,7 +320,8 @@ module Fx3HostInterface
             fx3_sloe_b    <= 0; 
             fx3_slrd_b    <= 1; // No read enable yet
             fx3_slwr_b    <= 1; // No write enable
-            fx3_pktend_b  <= 1; // No write enable
+            fx3_pktend_b  <= 1; 
+            pktend        <= 0; 
             fx3_fifo_addr <= CMD_EP;
             checksum      <= 0;
 
@@ -349,6 +352,7 @@ module Fx3HostInterface
                  fx3_slrd_b    <= 1; // No read enable yet
                  fx3_slwr_b    <= 1; // No write enable
                  fx3_pktend_b  <= 1; // No write enable
+                 pktend        <= 0; // No write enable
                  fx3_fifo_addr <= CMD_EP;
                  tcount        <= 0;
 		 bcount        <= 0;
@@ -387,23 +391,18 @@ module Fx3HostInterface
             
               SEND_ACK: begin // tcount should be zero upon entry
                  fx3_sloe_b    <= 1; // we drive bus to send ack
-
                  if (dma_rdy || (|tcount[1:0])) begin
-		    if(tcount[1:0] >= 2) begin
-                       fx3_slwr_b   <= 1;
-                       state        <= IDLE;
-                       fx3_pktend_b <= 0; // commit the short packet.
-
-		    end else begin
-
-                       fx3_slwr_b <= 0; // send the ack packet back
-                       tcount     <= tcount + 1;
-                       case(tcount)
-			 0: fd_out <= { checksum, 16'hA50F };
-			 1: fd_out <= { 16'h0001, status   };
-			 default:fd_out <= 0;
-                       endcase
-                    end // else: !if(tcount[1:0] > 2)
+                    fx3_slwr_b <= 0; // send the ack packet back
+                    tcount     <= tcount + 1;
+                    case(tcount)
+		      0: fd_out <= { checksum, 16'hA50F };
+		      1: begin
+			 fd_out <= { 16'h0001, status   };
+			 state        <= IDLE;
+			 fx3_pktend_b <= 0; // commit the short packet.
+		      end
+		      default:fd_out <= 0;
+                    endcase
 		 end else begin // if (dma_rdy || (|tcount[1:0]))
                     fx3_slwr_b <= 1;
 		 end
@@ -415,7 +414,9 @@ module Fx3HostInterface
                     READ_CMD: begin
                        fx3_sloe_b     <= 1;     // We drive the bus
                        fx3_slwr_b     <= !di_read;                       
-
+		       fx3_pktend_b   <= !pktend;
+		       
+		       
                        if(di_read) begin
                           fd_out      <= di_reg_datao;
                           checksum    <= checksum + di_reg_datao[15:0];//calc checksum
@@ -426,12 +427,14 @@ module Fx3HostInterface
                           di_read     <= 0;
                           
                        end else if(tcount >= di_len) begin // we're done
-                          di_read              <= 0;
-                          di_read_req          <= 0;
-			  fx3_pktend_b <= 1;
-			  bcount <= 0;
-			  tcount <= 0;
-			  state  <= SEND_ACK;
+                          di_read      <= 0;
+                          di_read_req  <= 0;
+			  pktend       <= 0;
+			  if(!dma_rdy) begin
+			    state  <= SEND_ACK;
+			     bcount <= 0;
+			     tcount <= 0;
+			  end
                        end else begin
 			  if(dma_rdy && (bcount <= buffer_length) && di_read_rdy) begin
 			     di_read <= 1;
@@ -440,7 +443,7 @@ module Fx3HostInterface
                              di_reg_addr       <= di_reg_addr + 1;
                              di_read_req       <= (next_tcount < di_len);
 			     if (next_tcount >= di_len && next_bcount < buffer_length) begin
-				fx3_pktend_b <= 0; // indicate this is a short packet to end the transfer
+				pktend <= 1; // indicate this is a short packet to end the transfer
 			     end
 			  end else begin
 			     di_read_req <= 0;
