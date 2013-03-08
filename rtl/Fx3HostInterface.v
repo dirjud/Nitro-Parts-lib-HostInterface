@@ -259,10 +259,10 @@ module Fx3HostInterface
    assign di_len               = cmd_buf[3];
 
 //   reg [15:0] checksum, status;
-   reg 	      slrd_b_s, slrd_b_ss;
+   reg 	      slrd_b_s, slrd_b_ss, slrd_b_sss;
    
-   wire       write_in_process =  !fx3_slrd_b || !slrd_b_s || !slrd_b_ss || di_write;
-   wire       latch_fd_in = !slrd_b_ss;
+   wire       write_in_process =  !fx3_slrd_b || !slrd_b_s || !slrd_b_ss || !slrd_b_sss || di_write;
+   wire       latch_fd_in = !slrd_b_sss;
    reg 	      wait_for_next_buffer;
    wire [31:0] fifo_rdata;
    wire        fifo_full, fifo_empty;
@@ -297,6 +297,7 @@ module Fx3HostInterface
 	 cmd_buf[3] <= 0;
 	 slrd_b_s   <= 1;
 	 slrd_b_ss  <= 1;
+	 slrd_b_sss <= 1;
 	 wait_for_next_buffer <= 0;
 	 
       end else begin
@@ -306,6 +307,7 @@ module Fx3HostInterface
 
 	 slrd_b_s  <= fx3_slrd_b;
 	 slrd_b_ss <= slrd_b_s;
+	 slrd_b_sss <= slrd_b_ss;
 	 
 	 
          if(cmd_start) begin
@@ -431,12 +433,12 @@ module Fx3HostInterface
                           di_read_req  <= 0;
 			  pktend       <= 0;
 			  if(!dma_rdy) begin
-			    state  <= SEND_ACK;
+			     state  <= SEND_ACK;
 			     bcount <= 0;
 			     tcount <= 0;
 			  end
                        end else begin
-			  if(dma_rdy && (bcount <= buffer_length) && di_read_rdy) begin
+			  if(dma_rdy && (bcount < buffer_length) && di_read_rdy) begin
 			     di_read <= 1;
 			     bcount <= next_bcount;
 			     tcount <= next_tcount;
