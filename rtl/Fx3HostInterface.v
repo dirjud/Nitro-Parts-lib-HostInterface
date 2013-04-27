@@ -162,7 +162,6 @@ module Fx3HostInterface
    output reg 	     fx3_sloe_b,
    output reg 	     fx3_slrd_b,
    output reg 	     fx3_slwr_b,
-   output reg 	     fx3_slcs_b,
    output reg 	     fx3_pktend_b,
    output reg [1:0]  fx3_fifo_addr,
    input [31:0]      fx3_fd_in,
@@ -199,7 +198,6 @@ module Fx3HostInterface
    // synthesis attribute IOB of fx3_fifo_addr is "TRUE";
    // synthesis attribute IOB of fx3_slrd_b    is "TRUE";
    // synthesis attribute IOB of fx3_slwr_b    is "TRUE";
-   // synthesis attribute IOB of fx3_slcs_b    is "TRUE";
    // synthesis attribute IOB of fx3_sloe_b    is "TRUE";
    // synthesis attribute IOB of fx3_pktend_b  is "TRUE";
    // synthesis attribute IOB of fx3_dma_rdy_b is "TRUE";
@@ -224,7 +222,6 @@ module Fx3HostInterface
          dma_rdy_b <= 0;
          fd_in <= 0;
          cmd_start <= 1;
-	 fx3_slcs_b <= 0;
       end else begin
          dma_rdy_b <= fx3_dma_rdy_b;
          fd_in <= fx3_fd_in;

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009 Ubixum, Inc. 
+ * Copyright (C) 2013 BrooksEE, LLC.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,16 +26,17 @@ module fx3
    
    output 	 fx3_hics_b,
 //   output [2:0] fx3_flags,
-   output 	 fx3_dma_rdy,
+   output 	 fx3_dma_rdy_b,
    input 	 fx3_sloe_b,
    input 	 fx3_slrd_b,
    input 	 fx3_slwr_b,
    input 	 fx3_slcs_b,
    input 	 fx3_pktend_b,
    input [1:0] 	 fx3_fifo_addr,
-   input [31:0]  fx3_fd_in,
-   output [31:0] fx3_fd_out,
-   output 	 fx3_fd_oe,
+   inout [31:0]  fx3_fd,
+//   input [31:0]  fx3_fd_in,
+//   output [31:0] fx3_fd_out,
+//   output 	 fx3_fd_oe,
    
    inout 	 SCL,
    inout 	 SDA
@@ -61,7 +62,7 @@ module fx3
    pullup p2(SDA);
 
    reg [1:0] fifo_addr;
-   assign fx3_ifclk  = !clk; // invert clk
+   assign fx3_ifclk  = clk; // invert clk
    assign fx3_clkout = clk;
    assign fx3_hics_b = hics_b;
    
@@ -76,16 +77,17 @@ module fx3
 
 //   assign fx3_flags = { 1'b0, full_b, empty_b };
    
-   assign fx3_dma_rdy = wfifo_active    ? !empty_b :
-			cmd_fifo_active ? !cmd_empty_b :
-			rfifo_active    ? !full_b :
-			1'b1;
+   assign fx3_dma_rdy_b = wfifo_active    ? !empty_b :
+			  cmd_fifo_active ? !cmd_empty_b :
+			  rfifo_active    ? !full_b :
+			  1'b1;
 
-//   assign fx3_fd = (sloe_b) ? 16'hZZZZ : datao1;
-   assign fx3_fd_out = datao1;
-   assign fx3_fd_oe  = !sloe_b;
+   assign fx3_fd = (sloe_b) ? 32'hZZZZZZZZ : datao1;
+   wire [31:0] fd_in = fx3_fd;
    
-   wire [31:0] fd_in = fx3_fd_in;
+//   assign fx3_fd_out = datao1;
+//   assign fx3_fd_oe  = !sloe_b;
+//   wire [31:0] fd_in = fx3_fd_in;
    
    always @(posedge clk) begin
       fifo_addr <= fx3_fifo_addr;
