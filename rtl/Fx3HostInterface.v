@@ -179,12 +179,11 @@ module Fx3HostInterface
    input wire 	     di_read_rdy,
    input [31:0]      di_reg_datao,
 
-   output [31:0]     cmdbuf0,
-   output [31:0]     cmdbuf1,
-   output [31:0]     cmdbuf2,
-   output [31:0]     cmdbuf3,
-   output reg [15:0]     checksum,
-   output reg [15:0]     status,
+   input [15:0] 	     i2c_addr,
+   output [7:0]     i2c_data,
+
+   output reg [15:0] checksum,
+   output reg [15:0] status,
    
    output reg 	     di_write,
    input wire 	     di_write_rdy,
@@ -209,13 +208,11 @@ module Fx3HostInterface
    wire dma_rdy = !dma_rdy_b;
    reg [31:0] fd_in, fd_out;
    reg [31:0] cmd_buf[0:3];
-   assign cmdbuf0 = cmd_buf[0];
-   assign cmdbuf1 = cmd_buf[1];
-   assign cmdbuf2 = cmd_buf[2];
-   assign cmdbuf3 = cmd_buf[3];
+
+   reg [7:0]  tmp_count;
    
 //   assign fx3_fd = (fx3_sloe_b) ? fd_out : 32'hZZZZZZZZ;
-   assign fx3_fd_oe = fx3_sloe_b;
+   assign fx3_fd_oe = 1'b0; //fx3_sloe_b;
    assign fx3_fd_out = fd_out;
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
@@ -296,6 +293,8 @@ module Fx3HostInterface
 	 slrd_b_ss  <= 1;
 	 slrd_b_sss <= 1;
 	 wait_for_next_buffer <= 0;
+
+	 tmp_count <= 0;
 	 
       end else begin
          di_read_mode     <= ((state == PROCESS_CMD) || (state == SEND_ACK)) && (cmd == READ_CMD);
@@ -364,15 +363,16 @@ module Fx3HostInterface
                        state  <= PROCESS_CMD;
                        tcount <= 0;
 		       bcount <= 0;
-		    end
-		    if (cmd == WRITE_CMD) begin
-                       di_reg_addr    <= di_starting_reg_addr - 1;
-                       fx3_fifo_addr  <= WRITE_EP;
-		    end else begin
-		       di_reg_addr    <= di_starting_reg_addr;
-		       fx3_fifo_addr  <= READ_EP;
-		    end
+		       tmp_count <= tmp_count + 1;
 
+		       if (cmd == WRITE_CMD) begin
+			  di_reg_addr    <= di_starting_reg_addr - 1;
+			  fx3_fifo_addr  <= WRITE_EP;
+		       end else begin
+			  di_reg_addr    <= di_starting_reg_addr;
+			  fx3_fifo_addr  <= READ_EP;
+		       end
+		    end
                  end else begin
                     if(dma_rdy && (bcount < 16)) begin
                        fx3_slrd_b <= 0;         // assert read enable
@@ -514,6 +514,27 @@ module Fx3HostInterface
       .empty (fifo_empty)
       );
    
+   assign i2c_data = (i2c_addr == 0) ? 8'hed :
+ 		     (i2c_addr == 1) ? tmp_count            :
+		     (i2c_addr == 2) ? cmd_buf[0][7:0]      :
+		     (i2c_addr == 3) ? cmd_buf[0][15:8]     :
+		     (i2c_addr == 4) ? cmd_buf[0][23:16]    :
+		     (i2c_addr == 5) ? cmd_buf[0][31:24]    :
+		     (i2c_addr == 6) ? cmd_buf[1][7:0]      :
+		     (i2c_addr == 7) ? cmd_buf[1][15:8]     :
+		     (i2c_addr == 8) ? cmd_buf[1][23:16]    :
+		     (i2c_addr == 9) ? cmd_buf[1][31:24]    :
+		     (i2c_addr ==10) ? cmd_buf[2][7:0]      :
+		     (i2c_addr ==11) ? cmd_buf[2][15:8]     :
+		     (i2c_addr ==12) ? cmd_buf[2][23:16]    :
+		     (i2c_addr ==13) ? cmd_buf[2][31:24]    :
+		     (i2c_addr ==14) ? cmd_buf[3][7:0]      :
+		     (i2c_addr ==15) ? cmd_buf[3][15:8]     :
+		     (i2c_addr ==16) ? cmd_buf[3][23:16]    :
+		     (i2c_addr ==17) ? cmd_buf[3][31:24]    :
+		     (i2c_addr ==18) ? { dma_rdy, cmd_start, state } :
+		     8'h00;
+
 endmodule
 
 module fx3_fifo
@@ -570,5 +591,6 @@ module fx3_fifo
 	    end
 	 end
       end
-   end
+   end // always@ (posedge clk)
+
 endmodule
