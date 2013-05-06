@@ -212,7 +212,7 @@ module Fx3HostInterface
    reg [7:0]  tmp_count;
    
 //   assign fx3_fd = (fx3_sloe_b) ? fd_out : 32'hZZZZZZZZ;
-   assign fx3_fd_oe = 1'b0; //fx3_sloe_b;
+   assign fx3_fd_oe = fx3_sloe_b;
    assign fx3_fd_out = fd_out;
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
