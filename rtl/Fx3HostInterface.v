@@ -182,9 +182,6 @@ module Fx3HostInterface
    input [15:0] 	     i2c_addr,
    output [7:0]     i2c_data,
 
-   output reg [15:0] checksum,
-   output reg [15:0] status,
-   
    output reg 	     di_write,
    input wire 	     di_write_rdy,
    output reg 	     di_write_mode,
@@ -209,8 +206,6 @@ module Fx3HostInterface
    reg [31:0] fd_in, fd_out;
    reg [31:0] cmd_buf[0:3];
 
-   reg [7:0]  tmp_count;
-   
 //   assign fx3_fd = (fx3_sloe_b) ? fd_out : 32'hZZZZZZZZ;
    assign fx3_fd_oe = fx3_sloe_b;
    assign fx3_fd_out = fd_out;
@@ -227,7 +222,7 @@ module Fx3HostInterface
    end
    
    parameter [1:0] WRITE_EP = 3;
-   parameter [1:0] CMD_EP   = 1;
+   parameter [1:0] CMD_EP   = 2;
    parameter [1:0] READ_EP  = 0;
    parameter 
      IDLE          = 0,
@@ -252,7 +247,7 @@ module Fx3HostInterface
    assign di_starting_reg_addr = cmd_buf[2];
    assign di_len               = cmd_buf[3];
 
-//   reg [15:0] checksum, status;
+   reg [15:0] checksum, status;
    reg 	      slrd_b_s, slrd_b_ss, slrd_b_sss;
    
    wire       write_in_process =  !fx3_slrd_b || !slrd_b_s || !slrd_b_ss || !slrd_b_sss || di_write;
@@ -294,8 +289,6 @@ module Fx3HostInterface
 	 slrd_b_sss <= 1;
 	 wait_for_next_buffer <= 0;
 
-	 tmp_count <= 0;
-	 
       end else begin
          di_read_mode     <= ((state == PROCESS_CMD) || (state == SEND_ACK)) && (cmd == READ_CMD);
          di_write_mode    <= ((state == PROCESS_CMD) || (state == SEND_ACK)) && (cmd == WRITE_CMD);
@@ -332,7 +325,6 @@ module Fx3HostInterface
 	    di_reg_addr   <= 0;
 
             fd_out        <= 0;
-            status        <= 0;
 	    cmd_buf[0]    <= 0;
 	    cmd_buf[1]    <= 0;
 	    cmd_buf[2]    <= 0;
@@ -363,7 +355,6 @@ module Fx3HostInterface
                        state  <= PROCESS_CMD;
                        tcount <= 0;
 		       bcount <= 0;
-		       tmp_count <= tmp_count + 1;
 
 		       if (cmd == WRITE_CMD) begin
 			  di_reg_addr    <= di_starting_reg_addr - 1;
@@ -515,7 +506,6 @@ module Fx3HostInterface
       );
    
    assign i2c_data = (i2c_addr == 0) ? 8'hed :
- 		     (i2c_addr == 1) ? tmp_count            :
 		     (i2c_addr == 2) ? cmd_buf[0][7:0]      :
 		     (i2c_addr == 3) ? cmd_buf[0][15:8]     :
 		     (i2c_addr == 4) ? cmd_buf[0][23:16]    :
