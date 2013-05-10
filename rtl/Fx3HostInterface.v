@@ -179,9 +179,6 @@ module Fx3HostInterface
    input wire 	     di_read_rdy,
    input [31:0]      di_reg_datao,
 
-   input [15:0] 	     i2c_addr,
-   output [7:0]     i2c_data,
-
    output reg 	     di_write,
    input wire 	     di_write_rdy,
    output reg 	     di_write_mode,
@@ -505,26 +502,6 @@ module Fx3HostInterface
       .empty (fifo_empty)
       );
    
-   assign i2c_data = (i2c_addr == 0) ? 8'hed :
-		     (i2c_addr == 2) ? cmd_buf[0][7:0]      :
-		     (i2c_addr == 3) ? cmd_buf[0][15:8]     :
-		     (i2c_addr == 4) ? cmd_buf[0][23:16]    :
-		     (i2c_addr == 5) ? cmd_buf[0][31:24]    :
-		     (i2c_addr == 6) ? cmd_buf[1][7:0]      :
-		     (i2c_addr == 7) ? cmd_buf[1][15:8]     :
-		     (i2c_addr == 8) ? cmd_buf[1][23:16]    :
-		     (i2c_addr == 9) ? cmd_buf[1][31:24]    :
-		     (i2c_addr ==10) ? cmd_buf[2][7:0]      :
-		     (i2c_addr ==11) ? cmd_buf[2][15:8]     :
-		     (i2c_addr ==12) ? cmd_buf[2][23:16]    :
-		     (i2c_addr ==13) ? cmd_buf[2][31:24]    :
-		     (i2c_addr ==14) ? cmd_buf[3][7:0]      :
-		     (i2c_addr ==15) ? cmd_buf[3][15:8]     :
-		     (i2c_addr ==16) ? cmd_buf[3][23:16]    :
-		     (i2c_addr ==17) ? cmd_buf[3][31:24]    :
-		     (i2c_addr ==18) ? { dma_rdy, cmd_start, state } :
-		     8'h00;
-
 endmodule
 
 module fx3_fifo
