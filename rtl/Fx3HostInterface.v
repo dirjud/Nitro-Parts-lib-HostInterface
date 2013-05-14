@@ -253,6 +253,7 @@ module Fx3HostInterface
    wire [31:0] fifo_rdata;
    wire        fifo_full, fifo_empty;
    reg 	       pktend;
+   reg 	       first_write;
    
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
@@ -285,6 +286,7 @@ module Fx3HostInterface
 	 slrd_b_ss  <= 1;
 	 slrd_b_sss <= 1;
 	 wait_for_next_buffer <= 0;
+	 first_write <= 1;
 
       end else begin
          di_read_mode     <= ((state == PROCESS_CMD) || (state == SEND_ACK)) && (cmd == READ_CMD);
@@ -326,7 +328,8 @@ module Fx3HostInterface
 	    cmd_buf[1]    <= 0;
 	    cmd_buf[2]    <= 0;
 	    cmd_buf[3]    <= 0;
-            
+
+            first_write   <= 1;
          end else begin
 
             case(state)
@@ -353,11 +356,10 @@ module Fx3HostInterface
                        tcount <= 0;
 		       bcount <= 0;
 
+		       di_reg_addr <= di_starting_reg_addr;
 		       if (cmd == WRITE_CMD) begin
-			  di_reg_addr    <= di_starting_reg_addr - 1;
 			  fx3_fifo_addr  <= WRITE_EP;
 		       end else begin
-			  di_reg_addr    <= di_starting_reg_addr;
 			  fx3_fifo_addr  <= READ_EP;
 		       end
 		    end
@@ -470,7 +472,10 @@ module Fx3HostInterface
 
 		      if(!fifo_empty && di_write_rdy) begin
 			 di_write     <= 1;
-			 di_reg_addr  <= di_reg_addr + 1;
+			 if(!first_write) begin
+			    di_reg_addr  <= di_reg_addr + 1;
+			 end
+			 first_write <= 0;
 			 //di_reg_datai <= fifo_rdata;
 		      end else begin
 			 di_write <= 0;

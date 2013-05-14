@@ -68,7 +68,7 @@ module fx3
    
    wire        wfifo_active    = fifo_addr == 3;
    wire        rfifo_active    = fifo_addr == 0;
-   wire        cmd_fifo_active = fifo_addr == 1;
+   wire        cmd_fifo_active = fifo_addr == 2;
 
    wire        slwr_b    = !(!fx3_slwr_b && rfifo_active);
 
@@ -137,7 +137,7 @@ module fx3
     integer txcount;
     integer rxcount;
 
-    parameter RDWR_BUF_SIZE = 1024; // default size. Override at instanteation for larger read/writes.
+   parameter RDWR_BUF_SIZE = 1024; // default size. Override at instanteation for larger read/writes.
     
     // final destination buffer for reads and writes
     reg [7:0] rdwr_data_buf[0:RDWR_BUF_SIZE-1];
