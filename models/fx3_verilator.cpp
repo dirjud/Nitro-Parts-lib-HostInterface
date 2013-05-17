@@ -90,7 +90,7 @@ protected:
         advance_clk(100);
         for(int pos=0; pos<*rptr; pos++) {
           rx_data[rx_count] = rbuf[pos];
-	  printf("RX 0x%04x: 0x%08x\n", rx_count, rx_data[rx_count]);
+	  //printf("RX 0x%04x: 0x%08x\n", rx_count, rx_data[rx_count]);
           rx_count++;
         }
         *rdone = 0;
@@ -105,16 +105,16 @@ protected:
     }
     // copy rx_data into data buffer and separate out the ack
     uint16 checksum=0;
-    for(int pos=0; pos<length/4; pos++) {
+    for(int pos=0; pos<(length+3)/4; pos++) {
        ((uint32*)data)[pos] = rx_data[pos];
        checksum += rx_data[pos];       
     }
 
-    ack_pkt_t *ack_pkt = (ack_pkt_t *) (rx_data + length/4);
-    printf("ACK PKT\n");
-    printf(" id       = 0x%04x\n", ack_pkt->id);
-    printf(" checksum = 0x%04x\n", ack_pkt->checksum);
-    printf(" status   = 0x%04x\n", ack_pkt->status);
+    ack_pkt_t *ack_pkt = (ack_pkt_t *) (rx_data + (length+3)/4);
+    //printf("ACK PKT\n");
+    //printf(" id       = 0x%04x\n", ack_pkt->id);
+    //printf(" checksum = 0x%04x\n", ack_pkt->checksum);
+    //printf(" status   = 0x%04x\n", ack_pkt->status);
 
 
     char msg[256];
@@ -184,10 +184,10 @@ protected:
     *rptr = 0;
 
     ack_pkt_t *ack_pkt = (ack_pkt_t *) rbuf;
-    printf("ACK PKT\n");
-    printf(" id       = 0x%04x\n", ack_pkt->id);
-    printf(" checksum = 0x%04x\n", ack_pkt->checksum);
-    printf(" status   = 0x%04x\n", ack_pkt->status);
+    //printf("ACK PKT\n");
+    //printf(" id       = 0x%04x\n", ack_pkt->id);
+    //printf(" checksum = 0x%04x\n", ack_pkt->checksum);
+    //printf(" status   = 0x%04x\n", ack_pkt->status);
 
     char msg[256];
     if(ack_pkt->id != 0xA50F) {

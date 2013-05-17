@@ -449,7 +449,7 @@ module Fx3HostInterface
 
 		      if(tcount >= di_len) begin
 			 fx3_slrd_b <= 1;
-			 if(fifo_empty && !dma_rdy && !write_in_process) begin
+			 if(fifo_empty && !dma_rdy && !write_in_process && di_write_rdy) begin
 			    fx3_fifo_addr <= READ_EP;
 			    state <= SEND_ACK;
 			    tcount <= 0;
