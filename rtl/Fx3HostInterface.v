@@ -430,7 +430,7 @@ module Fx3HostInterface
 			     bcount <= next_bcount;
 			     tcount <= next_tcount;
                              di_reg_addr       <= di_reg_addr + 1;
-                             di_read_req       <= (next_tcount < di_len);
+                             di_read_req       <= (next_tcount < di_len) && (next_bcount < buffer_length);
 			     if (next_tcount >= di_len && next_bcount < buffer_length) begin
 				pktend <= 1; // indicate this is a short packet to end the transfer
 			     end
@@ -493,7 +493,6 @@ module Fx3HostInterface
       end
    end
 
-   wire fifo_re = !fifo_empty && di_write_rdy;
    wire fifo_we = di_write_mode && latch_fd_in;
    
    fx3_fifo fx3_fifo
@@ -541,14 +540,14 @@ module fx3_fifo
       end else begin
 	 if(we) begin
 	    data[waddr] <= wdata;
-	    if(re || !full) begin
+//	    if(re || !full) begin
 	       waddr <= next_waddr;
-	    end
+//	    end
 	 end
 	 if(re) begin
-	    if(we || !empty) begin
+//	    if(we || !empty) begin
 	       raddr <= next_raddr;
-	    end
+//	    end
 	 end
 
 	 // update empty and full flags
