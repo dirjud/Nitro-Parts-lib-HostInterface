@@ -95,7 +95,7 @@ protected:
         }
         *rdone = 0;
         *rptr  = 0;
-        advance_clk(100);
+        advance_clk(20);
       }
       advance_clk(1);
       if(main_time >= timeout_time) {
