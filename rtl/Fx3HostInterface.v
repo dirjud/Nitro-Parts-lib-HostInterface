@@ -509,7 +509,7 @@ module Fx3HostInterface
 endmodule
 
 module fx3_fifo
-  #(parameter LOG2_DEPTH=2)
+  #(parameter LOG2_DEPTH=3)
   (
    input clk,
    input resetb,
