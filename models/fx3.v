@@ -141,7 +141,6 @@ module fx3
     
     // final destination buffer for reads and writes
     reg [7:0] rdwr_data_buf[0:RDWR_BUF_SIZE-1];
-    reg [31:0] rdwr_data_cur; 
 
    /**
     * each io call sends a command to the FPGA
@@ -218,7 +217,6 @@ module fx3
       input [31:0] reg_addr;
       input [31:0] value;
       begin
-         rdwr_data_cur=0; 
          rdwr_data_buf[0] = value[7:0];
          rdwr_data_buf[1] = value[15:8];
          rdwr_data_buf[2] = value[23:16];
@@ -235,7 +233,6 @@ module fx3
       input [1023:0] value;
       integer        wcount;
       for(wcount=0; wcount<width; wcount=wcount+32) begin
-         rdwr_data_cur=0; 
          rdwr_data_buf[0] = 8'hFF & (value >> wcount);
          rdwr_data_buf[1] = 8'hFF & (value >> (wcount+8));
          rdwr_data_buf[2] = 8'hFF & (value >> (wcount+16));
