@@ -69,8 +69,9 @@ module hi_arbitor
    
    );
 
-   reg [$clog2(NUM_HOSTS)-1:0] host, next_host, read_fault;
-   wire busy = I_di_read_mode[host] || I_di_write_mode[host];
+   reg [$clog2(NUM_HOSTS)-1:0] host;
+   reg [NUM_HOSTS-1:0] read_fault;
+   wire busy = di_read_mode || di_write_mode;
    reg 	read_req_fault;
    
    assign di_term_addr  = I_di_term_addr[host];
@@ -84,7 +85,7 @@ module hi_arbitor
    assign di_reg_datai  = I_di_reg_datai[host];
 
    always_comb begin
-      for(int idx=0; idx<NUM_HOSTS; idx++) begin
+      for(int idx=0; idx<NUM_HOSTS; idx=idx+1) begin
 	 /* verilator lint_off WIDTH */
 	 if(idx == host) begin
 	 /* verilator lint_on WIDTH */
@@ -108,32 +109,31 @@ module hi_arbitor
 	 read_req_fault <= 0;
 	 read_fault <= 0;
       end else begin
-	 next_host = host;
-	 for(int k=0; k<NUM_HOSTS; k++) begin
-	    if(!busy) begin
+	 if(read_req_fault) begin
+	    read_req_fault <= 0;
+	 end else if(read_fault[host]) begin
+	    read_req_fault <= 1;
+	 end else if(!busy) begin
+	    for(int k=0; k<NUM_HOSTS; k=k+1) begin
 	       if(I_di_read_mode[k] || I_di_write_mode[k]) begin
 		  /* verilator lint_off WIDTH */
-		  next_host = k;
+		  host <= k;
+		  read_req_fault <= read_fault[k];
 		  /* verilator lint_on WIDTH */
+		  break;
 	       end
 	    end
 	 end
-	 host <= next_host;
-	 if(next_host != host && read_fault[next_host]) begin
-	    read_req_fault <= 1;
-	 end else begin
-	    read_req_fault <= 0;
-	 end
 	    
-	 for(int k=0; k<NUM_HOSTS; k++) begin
+	 for(int n=0; n<NUM_HOSTS; n=n+1) begin
 	    /* verilator lint_off WIDTH */
-	    if(k == host) begin
+	    if(n == host) begin
 	    /* verilator lint_on WIDTH */
 	       // clear the read fault for the active host
-	       read_fault[k] <= 0; 
+	       read_fault[n] <= 0; 
 	    end else begin
 	       // save off any read req received when it is not your turn
-	       read_fault[k] <= I_di_read_req[k] || read_fault[k]; 
+	       read_fault[n] <= I_di_read_req[n] || read_fault[n]; 
 	    end
 	 end
       end
