@@ -58,7 +58,7 @@ module MicroBlazeHostInterface
 
 
    assign di_term_addr = GPO1;
-   assign di_reg_addr  = IO_Address >> 2;
+   assign di_reg_addr  = {4'b0, IO_Address[29:2] }; // TOP two bits of mcs addr are always 1
    assign di_len       = 1;
    assign di_reg_datai = IO_Write_Data;
    
