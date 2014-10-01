@@ -19,7 +19,7 @@
 /* Author: Lane Brooks
    Date: 11/29/2014
  
-   This is a combinatorial arbitor of the Host Interface to allow multiple
+   This is a combinatorial arbiter of the Host Interface to allow multiple
    masters access to the same devices. It uses the ready signals to delay
    a master if another master is currently in process of using the bus.
  
@@ -29,7 +29,7 @@
  */
 
 
-module hi_arbitor
+module hi_arbiter
   #(parameter NUM_HOSTS=2)
   (
    input wire 		      ifclk,
@@ -47,7 +47,7 @@ module hi_arbitor
    input [NUM_HOSTS-1:0]      I_di_read_req,
    input [NUM_HOSTS-1:0]      I_di_read,
 
-   input [NUM_HOSTS-1:0]      I_lock_arbitor,
+   input [NUM_HOSTS-1:0]      I_lock_arbiter,
 
    output reg [NUM_HOSTS-1:0] O_di_write_rdy,
    output reg [NUM_HOSTS-1:0] O_di_read_rdy,
@@ -83,26 +83,26 @@ module hi_arbitor
    wire [31:0] 		     I0_di_reg_datai[NUM_HOSTS-1:0];
 
    genvar 		     unpk_idx;
-`define ARBITOR_UNPACK_ARRAY(PK_WIDTH, PK_LEN, PK_SRC, PK_DEST)   generate for (unpk_idx=0; unpk_idx<(PK_LEN); unpk_idx=unpk_idx+1) begin; assign PK_DEST[unpk_idx][((PK_WIDTH)-1):0] = PK_SRC[((PK_WIDTH)*unpk_idx+(PK_WIDTH-1)):((PK_WIDTH)*unpk_idx)]; end; endgenerate
+`define ARBITER_UNPACK_ARRAY(PK_WIDTH, PK_LEN, PK_SRC, PK_DEST)   generate for (unpk_idx=0; unpk_idx<(PK_LEN); unpk_idx=unpk_idx+1) begin; assign PK_DEST[unpk_idx][((PK_WIDTH)-1):0] = PK_SRC[((PK_WIDTH)*unpk_idx+(PK_WIDTH-1)):((PK_WIDTH)*unpk_idx)]; end; endgenerate
    
-   `ARBITOR_UNPACK_ARRAY(16, NUM_HOSTS, I_di_term_addr,  I0_di_term_addr  )
-   `ARBITOR_UNPACK_ARRAY(32, NUM_HOSTS, I_di_reg_addr,   I0_di_reg_addr   )
-   `ARBITOR_UNPACK_ARRAY(32, NUM_HOSTS, I_di_len,        I0_di_len	  )
-   `ARBITOR_UNPACK_ARRAY(32, NUM_HOSTS, I_di_reg_datai,  I0_di_reg_datai  )
+   `ARBITER_UNPACK_ARRAY(16, NUM_HOSTS, I_di_term_addr,  I0_di_term_addr  )
+   `ARBITER_UNPACK_ARRAY(32, NUM_HOSTS, I_di_reg_addr,   I0_di_reg_addr   )
+   `ARBITER_UNPACK_ARRAY(32, NUM_HOSTS, I_di_len,        I0_di_len	  )
+   `ARBITER_UNPACK_ARRAY(32, NUM_HOSTS, I_di_reg_datai,  I0_di_reg_datai  )
    
    reg [31:0] O0_di_reg_datao[NUM_HOSTS-1:0];
    reg [15:0] O0_di_transfer_status[NUM_HOSTS-1:0];
 
    genvar     pk_idx;
-`define ARBITOR_PACK_ARRAY(PK_WIDTH, PK_LEN, PK_DEST, PK_SRC)     generate for (pk_idx=0; pk_idx<(PK_LEN); pk_idx=pk_idx+1) begin; assign PK_DEST[((PK_WIDTH)*pk_idx+((PK_WIDTH)-1)):((PK_WIDTH)*pk_idx)] = PK_SRC[pk_idx][((PK_WIDTH)-1):0]; end; endgenerate
+`define ARBITER_PACK_ARRAY(PK_WIDTH, PK_LEN, PK_DEST, PK_SRC)     generate for (pk_idx=0; pk_idx<(PK_LEN); pk_idx=pk_idx+1) begin; assign PK_DEST[((PK_WIDTH)*pk_idx+((PK_WIDTH)-1)):((PK_WIDTH)*pk_idx)] = PK_SRC[pk_idx][((PK_WIDTH)-1):0]; end; endgenerate
 
-   `ARBITOR_PACK_ARRAY(32,NUM_HOSTS, O_di_reg_datao,	  O0_di_reg_datao      )
-   `ARBITOR_PACK_ARRAY(16,NUM_HOSTS, O_di_transfer_status,O0_di_transfer_status)
+   `ARBITER_PACK_ARRAY(32,NUM_HOSTS, O_di_reg_datao,	  O0_di_reg_datao      )
+   `ARBITER_PACK_ARRAY(16,NUM_HOSTS, O_di_transfer_status,O0_di_transfer_status)
    /////////////////////////////////////////////////////////////////////////////
    
    reg [$clog2(NUM_HOSTS)-1:0] host, next_host;
    reg [NUM_HOSTS-1:0] read_fault;
-   wire busy = di_read_mode || di_write_mode || I_lock_arbitor[host];
+   wire busy = di_read_mode || di_write_mode || I_lock_arbiter[host];
    reg 	read_req_fault;
 
    assign di_term_addr  = I0_di_term_addr[host];
