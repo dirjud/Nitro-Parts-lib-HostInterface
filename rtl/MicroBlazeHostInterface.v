@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2013 BrooksEE, LLC.
+ * Copyright (C) 2014 BrooksEE, LLC.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -35,9 +35,8 @@ module MicroBlazeHostInterface
    input [31:0]      IO_Write_Data, 
    output reg [31:0] IO_Read_Data, 
    output reg 	     IO_Ready, 
-   input [15:0]      GPO1,
-   input [7:0] 	     GPO2,
-   output reg [15:0] GPI1,
+   input [15:0]      mcs_term_addr,
+   output reg [15:0] mcs_transfer_status,
    
    output [15:0]     di_term_addr,
    output [31:0]     di_reg_addr,
@@ -57,7 +56,7 @@ module MicroBlazeHostInterface
    );
 
 
-   assign di_term_addr = GPO1;
+   assign di_term_addr = mcs_term_addr;
    assign di_reg_addr  = {4'b0, IO_Address[29:2] }; // TOP two bits of mcs addr are always 1
    assign di_len       = 1;
    assign di_reg_datai = IO_Write_Data;
@@ -70,11 +69,11 @@ module MicroBlazeHostInterface
 	 IO_Read_Data  <= 0;
 	 di_read_req   <= 0;
 	 di_read       <= 0;
-	 GPI1          <= 0;
+     mcs_transfer_status <= 0;
       end else begin
 	 if(di_read || di_write) begin
 	    IO_Ready <= 1;
-	    GPI1     <= di_transfer_status;
+	    mcs_transfer_status   <= di_transfer_status;
 	 end else begin
 	    IO_Ready <= 0;
 	 end
