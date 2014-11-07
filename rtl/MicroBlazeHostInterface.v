@@ -58,7 +58,10 @@ module MicroBlazeHostInterface
 
    assign di_term_addr = mcs_term_addr;
    assign di_reg_addr  = {4'b0, IO_Address[29:2] }; // TOP two bits of mcs addr are always 1
-   assign di_len       = 1;
+   assign di_len       = IO_Byte_Enable == 4'hF ? 4 :
+                         IO_Byte_Enable == 4'h3 ? 2 :
+                         IO_Byte_Enable == 4'h1 ? 1 :
+                         1;
    assign di_reg_datai = IO_Write_Data;
    
    always @(posedge ifclk or negedge resetb) begin
