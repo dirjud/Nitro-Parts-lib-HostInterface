@@ -23,6 +23,7 @@
 
 
 module MicroBlazeHostInterface
+ #(DI_DATA_WIDTH=32)
   (
    input wire 	     ifclk,
    input wire 	     resetb,
@@ -46,12 +47,12 @@ module MicroBlazeHostInterface
    output reg 	     di_read_req,
    output reg 	     di_read,
    input wire 	     di_read_rdy,
-   input [31:0]      di_reg_datao,
+   input [DI_DATA_WIDTH-1:0]      di_reg_datao,
 
    output reg 	     di_write,
    input wire 	     di_write_rdy,
    output reg 	     di_write_mode,
-   output [31:0]     di_reg_datai,
+   output [DI_DATA_WIDTH-1:0]     di_reg_datai,
    input [15:0]      di_transfer_status
    );
 
@@ -62,7 +63,10 @@ module MicroBlazeHostInterface
                          IO_Byte_Enable == 4'h3 ? 2 :
                          IO_Byte_Enable == 4'h1 ? 1 :
                          1;
+   // verilator lint_off WIDTH
+   // TODO for 16 bit di width this is ignoring the top 16 bits.
    assign di_reg_datai = IO_Write_Data;
+   // verilator lint_on WIDTH
    
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
@@ -80,7 +84,9 @@ module MicroBlazeHostInterface
 	 end else begin
 	    IO_Ready <= 0;
 	 end
+     // verilator lint_off WIDTH
 	 IO_Read_Data <= di_reg_datao;
+     // verilator lint_on WIDTH
 	 
 	 if(IO_Read_Strobe) begin
 	    di_read_mode <= 1;
