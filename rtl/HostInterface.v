@@ -285,7 +285,7 @@ module HostInterface
             state         <= RCV_CMD;
             tcount        <= 0;
             fx2_sloe_b    <= 0; 
-            fx2_slrd_b    <= 1; // No read enable yet
+            fx2_slrd_b    <= !(empty_b && fx2_slrd_b); //1; // No read enable yet
             fx2_slwr_b    <= 1; // No write enable
             fx2_pktend_b  <= 1; // No write enable
             fx2_fifo_addr <= WRITE_EP;
