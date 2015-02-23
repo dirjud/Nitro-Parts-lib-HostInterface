@@ -230,15 +230,15 @@ module Fx3HostInterface
    reg [31:0] tcount; // transfer count
    wire [31:0] next_tcount = tcount + 4;
 
-   reg [11:0] bcount; // buffer count  
-   wire [11:0] next_bcount = bcount + 4;
+   reg [15:0] bcount; // buffer count  
+   wire [15:0] next_bcount = bcount + 4;
  
    parameter [15:0] READ_CMD = 16'hC301;
    parameter [15:0] WRITE_CMD= 16'hC302;
    wire [31:0] di_starting_reg_addr;
    
    wire [15:0] cmd             = cmd_buf[0][15:0];
-   wire [11:0] buffer_length   = cmd_buf[0][27:16];
+   wire [15:0] buffer_length   = cmd_buf[0][31:16];
    assign di_term_addr         = cmd_buf[1][15:0];
    // cmd_buf[1][31:16] is unused
    assign di_starting_reg_addr = cmd_buf[2];
