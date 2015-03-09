@@ -11,6 +11,11 @@ enum {
   FX3_WRITE_CMD=2
 };
 
+// configure according to how fx3 endpoints are configured for superspeed bursting
+#define FX3_READ_BUFFERS (14)
+#define FX3_WRITE_BUFFERS (1)
+#define FX3_BUF_MULTIPLIER (2)
+
 typedef struct {
   uint16_t cmd;
   uint16_t buffer_length;
@@ -45,7 +50,11 @@ private:
     
     slfifo_cmd_t *slfifo = (slfifo_cmd_t *) cbuf;
     slfifo->cmd             = 0xC300 | (cmd & 0xFF);
-    slfifo->buffer_length   = 256*4;
+    slfifo->buffer_length   = 256*4 * FX3_BUF_MULTIPLIER;
+    if (cmd==FX3_READ_CMD) 
+        slfifo->buffer_length *= FX3_READ_BUFFERS; // 14 buffers for IN endpoint
+    else
+        slfifo->buffer_length *= FX3_WRITE_BUFFERS;
     slfifo->term_addr       = term;
     slfifo->reserved        = 0;
     slfifo->reg_addr        = reg;
@@ -158,7 +167,7 @@ protected:
         advance_clk(100);
         // fill the tx buffer
         int i;
-        for(i=0; (i<256) && (tx_count<length); i++) {
+        for(i=0; (i<256*FX3_WRITE_BUFFERS*FX3_BUF_MULTIPLIER) && (tx_count<length); i++) {
           wbuf[i] = data[tx_count] + (data[tx_count + 1] << 8) + (data[tx_count + 2] << 16) + (data[tx_count + 3] << 24);
           checksum += wbuf[i];                                       
           //printf("wbuf[%d]=0x%x txcount=%d\n", i, wbuf[i], tx_count);

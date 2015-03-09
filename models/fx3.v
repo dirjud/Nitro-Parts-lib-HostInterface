@@ -16,6 +16,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  **/
 
+`define FX3_READ_BUFFERS 14
+`define FX3_WRITE_BUFFERS 1
+`define FX3_BUF_MULTIPLIER 2
 
 module fx3
   (
@@ -44,13 +47,13 @@ module fx3
 
    reg sloe_b;
    reg hics_b             /* verilator public */;
-   reg [31:0] rbuf[0:255] /* verilator public */;
-   reg [8:0]  rptr        /* verilator public */;
+   reg [31:0] rbuf[0:256*`FX3_READ_BUFFERS*`FX3_BUF_MULTIPLIER-1] /* verilator public */;
+   reg [15:0]  rptr        /* verilator public */;
    reg rdone              /* verilator public */;
-   reg [31:0] wbuf[0:255] /* verilator public */;
+   reg [31:0] wbuf[0:256*`FX3_WRITE_BUFFERS*`FX3_BUF_MULTIPLIER-1] /* verilator public */;
    reg [31:0] cbuf[0:3]   /* verilator public */;
-   reg [8:0]  wptr        /* verilator public */;
-   reg [8:0]  wend        /* verilator public */;
+   reg [15:0]  wptr        /* verilator public */;
+   reg [15:0]  wend        /* verilator public */;
    reg empty_b            /* verilator public */;
    reg cmd_empty_b        /* verilator public */;
    reg [2:0] cmd_ptr  /* verilator public */ = 4;
@@ -96,7 +99,9 @@ module fx3
       empty_b <= !(wptr >= wend);
       if(!fx3_slrd_b && wfifo_active) begin
          wptr  <= wptr + 1;
-         datao <= wbuf[wptr[7:0]];
+         /* verilator lint_off WIDTH */
+         datao <= wbuf[wptr];
+         /* verilator lint_on WIDTH */
       end
 
       cmd_empty_b <= !(cmd_ptr >= 4);
@@ -108,9 +113,11 @@ module fx3
       datao1 <= wfifo_active    ? datao : 
 	        cmd_fifo_active ? cmd_datao : 0;
       
-      full_b <= !((rptr > 255 ) || rdone);
-      if(!slwr_b && (rptr <= 255 )) begin
-         rbuf[rptr[7:0]] <= fd_in;
+      full_b <= !((rptr > `FX3_READ_BUFFERS*`FX3_BUF_MULTIPLIER*256-1 ) || rdone);
+      if(!slwr_b && (rptr <= `FX3_READ_BUFFERS*`FX3_BUF_MULTIPLIER*256-1 )) begin
+         /* verilator lint_off WIDTH */
+         rbuf[rptr] <= fd_in;
+         /* verilator lint_on WIDTH */
          rptr <= rptr + 1;
       end
 
