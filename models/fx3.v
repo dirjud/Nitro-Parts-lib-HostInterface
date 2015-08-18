@@ -144,10 +144,10 @@ module fx3
     integer txcount;
     integer rxcount;
 
-   parameter RDWR_BUF_SIZE = 1024; // default size. Override at instanteation for larger read/writes.
-    
+    wire [15:0] rd_buf_size = 1024*`FX3_READ_BUFFERS*`FX3_BUF_MULTIPLIER; 
+    wire [15:0] wr_buf_size = 1024*`FX3_WRITE_BUFFERS*`FX3_BUF_MULTIPLIER; 
     // final destination buffer for reads and writes
-    reg [7:0] rdwr_data_buf[0:RDWR_BUF_SIZE-1];
+    reg [7:0] rdwr_data_buf[0:1024*`FX3_READ_BUFFERS*`FX3_BUF_MULTIPLIER-1];
 
    /**
     * each io call sends a command to the FPGA
@@ -162,7 +162,10 @@ module fx3
          repeat (50) @(posedge clk);
          hics_b=0;
          repeat (20) @(posedge clk);
-         cbuf[0] = { 16'd1024, 8'hc3, cmd };
+         cbuf[0] = {
+             cmd == 1 ? rd_buf_size :
+                        wr_buf_size,
+                        8'hc3, cmd };
          cbuf[1] = { 16'b0, term_addr };
          cbuf[2] = reg_addr;
          cbuf[3] = length;
