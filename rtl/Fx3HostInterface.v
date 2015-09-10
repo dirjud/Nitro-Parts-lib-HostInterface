@@ -408,7 +408,7 @@ module Fx3HostInterface
 		       
                        if(di_read) begin
                           fd_out      <= di_reg_datao;
-                          checksum    <= checksum + di_reg_datao[15:0];//calc checksum
+                          checksum    <= checksum + di_reg_datao[15:0] + di_reg_datao[31:16];
                        end
                        
                        if(!di_read_mode) begin // the first cycle of read_mode
