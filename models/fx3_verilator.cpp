@@ -116,7 +116,7 @@ protected:
     uint16 checksum=0;
     for(int pos=0; pos<(length+3)/4; pos++) {
        ((uint32*)data)[pos] = rx_data[pos];
-       checksum += rx_data[pos];       
+       checksum += (rx_data[pos] &0xffff) + (rx_data[pos] >> 16);       
     }
 
     ack_pkt_t *ack_pkt = (ack_pkt_t *) (rx_data + (length+3)/4);
