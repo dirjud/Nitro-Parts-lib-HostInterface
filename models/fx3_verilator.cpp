@@ -76,18 +76,31 @@ private:
   }
   
 protected:
-  DataType _get(uint32 terminal_addr, uint32 reg_addr, uint32 timeout ) {
-    uint16 val;
-    uint32_t timeout_time = get_timeout_time(timeout);
-    if(reg_addr == 4 and terminal_addr == 6) {// hack to pass firmware version
-       return DataType( static_cast<uint32>(512));
-    }                                         
-    _read(terminal_addr, reg_addr, (uint8*) (&val), 2, timeout);
-    return DataType( static_cast<uint32>((uint32) val));
-  }
+  
+  // unused in newer nitro
+  //DataType _get(uint32 terminal_addr, uint32 reg_addr, uint32 timeout ) {
+  //  uint16 val;
+  //  uint32_t timeout_time = get_timeout_time(timeout);
+  //  if(reg_addr == 4 and terminal_addr == 6) {// hack to pass firmware version
+  //     return DataType( static_cast<uint32>(512));
+  //  }                                         
+  //  _read(terminal_addr, reg_addr, (uint8*) (&val), 2, timeout);
+  //  return DataType( static_cast<uint32>((uint32) val));
+  //}
 
   void _read( uint32 terminal_addr, uint32 reg_addr, uint8* data, size_t length, uint32 timeout ) {
     uint32_t timeout_time = get_timeout_time(timeout);
+
+    // TODO need to associate terminals_defs.h 
+    // to pick out FX3/UXN1330 addresses to filter to not send
+    // them to the fpga sim.
+    // even better somehow sim those terminals.
+    // extend this model?
+    if (terminal_addr == 0x100 // fx3
+     || terminal_addr == 5 // dummy fx3
+     || terminal_addr == 80) // fx3 prom 
+    return; // pretend it worked
+
     send_cmd(FX3_READ_CMD, terminal_addr, reg_addr, length);
     advance_clk(1);
 
@@ -149,14 +162,23 @@ protected:
     free(rx_data);                             
   }
 
-  void _set(uint32 terminal_addr, uint32 reg_addr, const DataType& type, uint32 timeout ) {
-    uint16 data = (uint16) static_cast<uint32>(type);
-    _write(terminal_addr, reg_addr, (uint8*) (&data), 2, timeout);
-  }
+  // unused in newer nitro
+  //void _set(uint32 terminal_addr, uint32 reg_addr, const DataType& type, uint32 timeout ) {
+  //  uint16 data = (uint16) static_cast<uint32>(type);
+  //  _write(terminal_addr, reg_addr, (uint8*) (&data), 2, timeout);
+  //}
 
   void _write( uint32 terminal_addr, uint32 reg_addr, const uint8* data, size_t length, uint32 timeout ) {
     uint32_t timeout_time = get_timeout_time(timeout);
     unsigned int checksum = 0;
+
+    // see comment in _read
+    if (terminal_addr == 0x100 // fx3
+     || terminal_addr == 5 // dummy fx3
+     || terminal_addr == 80) // fx3 prom 
+    return; // pretend it worked
+
+
     send_cmd(FX3_WRITE_CMD, terminal_addr, reg_addr, length);
     advance_clk(1);
 
