@@ -68,8 +68,9 @@ module hi_arbiter
    input 		      di_write_rdy,
    output 		      di_write_mode,
    output [31:0] 	      di_reg_datai,
-   input [15:0] 	      di_transfer_status
-   
+   input [15:0] 	      di_transfer_status,
+
+   output [$clog2(NUM_HOSTS)-1:0] active_host_num
    );
 
    /////////////////////////////////////////////////////////////////////////////
@@ -104,16 +105,16 @@ module hi_arbiter
    reg [NUM_HOSTS-1:0] read_fault;
    wire busy = di_read_mode || di_write_mode || I_lock_arbiter[host];
    reg 	read_req_fault;
-
-   assign di_term_addr  = I0_di_term_addr[host];
-   assign di_reg_addr   = I0_di_reg_addr[host]; 
-   assign di_len        = I0_di_len[host];      
-   assign di_read_mode  = I_di_read_mode[host];
-   assign di_read_req   = I_di_read_req[host] || read_req_fault; 
-   assign di_read       = I_di_read[host];     
-   assign di_write      = I_di_write[host];     
-   assign di_write_mode = I_di_write_mode[host];
-   assign di_reg_datai  = I0_di_reg_datai[host];
+   assign active_host_num = host;
+   assign di_term_addr    = I0_di_term_addr[host];
+   assign di_reg_addr     = I0_di_reg_addr[host]; 
+   assign di_len          = I0_di_len[host];      
+   assign di_read_mode    = I_di_read_mode[host];
+   assign di_read_req     = I_di_read_req[host] || read_req_fault; 
+   assign di_read         = I_di_read[host];     
+   assign di_write        = I_di_write[host];     
+   assign di_write_mode   = I_di_write_mode[host];
+   assign di_reg_datai    = I0_di_reg_datai[host];
 
    reg [31:0] idx, k, n;
    always @(*) begin
@@ -157,7 +158,7 @@ module hi_arbiter
 	 end
 	 host <= next_host;
 	 read_req_fault <= read_fault[host];
-	 
+
 	 for(n=0; n<NUM_HOSTS; n=n+1) begin
 	    /* verilator lint_off WIDTH */
 	    if(n == host) begin
