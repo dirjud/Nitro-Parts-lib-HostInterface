@@ -67,6 +67,7 @@ module MicroBlazeHostInterface
    // TODO for 16 bit di width this is ignoring the top 16 bits.
    assign di_reg_datai = IO_Write_Data;
    // verilator lint_on WIDTH
+   reg 		     di_wrote, di_write_done;
    
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
@@ -76,9 +77,11 @@ module MicroBlazeHostInterface
 	 IO_Read_Data  <= 0;
 	 di_read_req   <= 0;
 	 di_read       <= 0;
+	 di_wrote      <= 0;
+	 di_write_done <= 0;
      mcs_transfer_status <= 0;
       end else begin
-	 if(di_read || di_write) begin
+	 if(di_read || di_write_done) begin
 	    IO_Ready <= 1;
 	    mcs_transfer_status   <= di_transfer_status;
 	 end else begin
@@ -108,15 +111,25 @@ module MicroBlazeHostInterface
 	 if(IO_Write_Strobe) begin
 	    di_write_mode <= 1;
 	    di_write <= 0;
+	    di_wrote <= 0;
+	    di_write_done <= 0;
 	 end else if(di_write_mode) begin
 	    if(di_write) begin
+	       di_wrote <= 1; // record write so can watch for write_rdy afterward
+	    end
+	    if(di_wrote && di_write_rdy) begin
 	       di_write_mode <= 0;
+	       di_write_done <= 1;
+	    end
+	    if(di_write) begin
+	       //di_write_mode <= 0;
 	       di_write <= 0;
-	    end else begin
+	    end else if(!di_wrote) begin
 	       di_write <= di_write_rdy;
 	    end
 	 end else begin
 	    di_write <= 0;
+	    di_write_done <= 0;
 	 end
       end
    end
