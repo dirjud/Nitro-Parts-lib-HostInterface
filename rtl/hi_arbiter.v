@@ -117,11 +117,15 @@ module hi_arbiter
    assign di_reg_datai    = I0_di_reg_datai[host];
 
    reg [31:0] idx, k, n;
+   reg host_change;
    always @(*) begin
       for(idx=0; idx<NUM_HOSTS; idx=idx+1) begin
 	 /* verilator lint_off WIDTH */
-	 if(idx == host) begin
-	 /* verilator lint_on WIDTH */
+	 if(idx == host && !host_change) begin
+	    // force one cycle of outputs low during a host change because some
+	    // devices take a cycle to adjust to the host change
+	    
+	    /* verilator lint_on WIDTH */
 	    O_di_read_rdy[idx]         = di_read_rdy;	
 	    O0_di_reg_datao[idx]       = di_reg_datao;	
 	    O_di_write_rdy[idx]        = di_write_rdy;	
@@ -135,12 +139,13 @@ module hi_arbiter
 	 end
       end
    end
-
+   
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
 	 host <= 0;
 	 read_req_fault <= 0;
 	 read_fault <= 0;
+	 host_change <= 0;
       end else begin
 	 next_host = host;
 	 if(read_req_fault) begin
@@ -156,6 +161,7 @@ module hi_arbiter
 	       end
 	    end
 	 end
+	 host_change <= (next_host != host);
 	 host <= next_host;
 	 read_req_fault <= read_fault[host];
 
