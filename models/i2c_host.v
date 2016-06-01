@@ -16,10 +16,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  **/
 
-`define FX3_READ_BUFFERS 14
-`define FX3_WRITE_BUFFERS 1
-`define FX3_BUF_MULTIPLIER 2
-
 module i2c_host
   (
    input 	 clk,
@@ -28,96 +24,75 @@ module i2c_host
    inout 	 SDA
    );
 
-   reg sloe_b;
-   reg hics_b             /* verilator public */;
-   reg [31:0] rbuf[0:256*`FX3_READ_BUFFERS*`FX3_BUF_MULTIPLIER-1] /* verilator public */;
-   reg [15:0]  rptr        /* verilator public */;
-   reg rdone              /* verilator public */;
-   reg [31:0] wbuf[0:256*`FX3_WRITE_BUFFERS*`FX3_BUF_MULTIPLIER-1] /* verilator public */;
-   reg [31:0] cbuf[0:3]   /* verilator public */;
-   reg [15:0]  wptr        /* verilator public */;
-   reg [15:0]  wend        /* verilator public */;
-   reg empty_b            /* verilator public */;
-   reg cmd_empty_b        /* verilator public */;
-   reg [2:0] cmd_ptr  /* verilator public */ = 4;
-   reg full_b             /* verilator public */;
-   reg [31:0] datao;
-   reg [31:0] cmd_datao;
+   reg [6:0] term_addr     /* verilator public */;
+   reg [15:0] reg_addr     /* verilator public */;
+   reg [31:0] reg_datai    /* verilator public */;
+   reg [31:0] reg_datao    /* verilator public */;
+   reg write_mode          /* verilator public */;
+   reg i2c_re              /* verilator public */;
+   reg i2c_we              /* verilator public */;
+   wire i2c_done           /* verilator public */;
+   wire i2c_busy           /* verilator public */;
+   wire [6:0] i2c_status   /* verilator public */;
+
+   initial begin
+      term_addr=0;
+      reg_addr =0;
+      reg_datai=0;
+      write_mode=0;
+      i2c_we =0;
+      i2c_re =0;
+   end
+
 
    pullup p1(SCL);
    pullup p2(SDA);
 
-   reg [1:0] fifo_addr;
-   assign fx3_ifclk  = clk; // invert clk
-   assign fx3_clkout = clk;
-   assign fx3_hics_b = hics_b;
-   
-   wire        wfifo_active    = fifo_addr == 3;
-   wire        rfifo_active    = fifo_addr == 0;
-   wire        cmd_fifo_active = fifo_addr == 2;
+   wire sda_in, sda_out, sda_oeb, scl_in, scl_out, scl_oeb;
 
-   wire        slwr_b    = !(!fx3_slwr_b && rfifo_active);
+   assign sda_in = SDA;
+   assign scl_in = SCL;
 
-   reg [31:0]  datao1;
-   
+   assign SDA = (sda_oeb == 0) ? sda_out : 1'bz;
+   assign SCL = (scl_oeb == 0) ? scl_out : 1'bz;
 
-//   assign fx3_flags = { 1'b0, full_b, empty_b };
-   
-   assign fx3_dma_rdy_b = wfifo_active    ? !empty_b :
-			  cmd_fifo_active ? !cmd_empty_b :
-			  rfifo_active    ? !full_b :
-			  1'b1;
-
-   assign fx3_fd = (sloe_b) ? 32'hZZZZZZZZ : datao1;
-   wire [31:0] fd_in = fx3_fd;
-   
-//   assign fx3_fd_out = datao1;
-//   assign fx3_fd_oe  = !sloe_b;
-//   wire [31:0] fd_in = fx3_fd_in;
-   
+   reg [3:0] reset_count = 0;
+   wire reset_n = &reset_count;
    always @(posedge clk) begin
-      fifo_addr <= fx3_fifo_addr;
-      sloe_b    <= fx3_sloe_b;
-      
-      empty_b <= !(wptr >= wend);
-      if(!fx3_slrd_b && wfifo_active) begin
-         wptr  <= wptr + 1;
-         /* verilator lint_off WIDTH */
-         datao <= wbuf[wptr];
-         /* verilator lint_on WIDTH */
-      end
-
-      cmd_empty_b <= !(cmd_ptr >= 4);
-      if(!fx3_slrd_b && cmd_empty_b && cmd_fifo_active) begin
-	 cmd_ptr <= cmd_ptr+1;
-         cmd_datao <= cbuf[cmd_ptr[1:0]];
-      end
-
-      datao1 <= wfifo_active    ? datao : 
-	        cmd_fifo_active ? cmd_datao : 0;
-      
-      full_b <= !((rptr > `FX3_READ_BUFFERS*`FX3_BUF_MULTIPLIER*256-1 ) || rdone);
-      if(!slwr_b && (rptr <= `FX3_READ_BUFFERS*`FX3_BUF_MULTIPLIER*256-1 )) begin
-         /* verilator lint_off WIDTH */
-         rbuf[rptr] <= fd_in;
-         /* verilator lint_on WIDTH */
-         rptr <= rptr + 1;
-      end
-
-      if(!fx3_pktend_b) begin
-         rdone <= 1;
+      if(!reset_n) begin
+	 reset_count <= reset_count + 1;
       end
    end
-
-   initial begin
-      hics_b=1;
-      rptr=0;
-      rdone=0;
-      wptr=0;
-      wend=0;
-      datao=0;
-   end
-
+   wire [11:0] clk_divider = 12'd4;
+   
+   
+   i2c_master
+     #(.NUM_ADDR_BYTES(2),
+       .NUM_DATA_BYTES(4))
+   i2c_master
+     (
+      .clk(clk),
+      .reset_n(reset_n),
+      .clk_divider(clk_divider), // sets the 1/4 scl period
+      .chip_addr(term_addr),
+      .reg_addr(reg_addr),
+      .datai(reg_datai),
+      .open_drain_mode(1'b1),
+      .we(i2c_we),
+      .write_mode(write_mode),
+      .re(i2c_re),
+      .status(i2c_status),
+      .done(i2c_done),
+      .busy(i2c_busy),
+      .datao(reg_datao),
+      .sda_in(sda_in),
+      .sda_out(sda_out),
+      .sda_oeb(sda_oeb),
+      .scl_in(scl_in),
+      .scl_out(scl_out),
+      .scl_oeb(scl_oeb)
+      );
+   
 `ifndef verilator
 /***********************************************************/
 /********************** GENERIC VERILOG MODEL **************/
@@ -309,24 +284,22 @@ module i2c_host
 /***********************************************************/
 
  `systemc_header
-#include "../../../../lib/HostInterface/models/fx3_verilator.cpp"
+#include "../../../../lib/HostInterface/models/i2c_verilator.cpp"
  `systemc_interface
-   FX3Device *fx3_dev;    // Pointer to object we are embedding
+   I2CDevice *i2c_dev;    // Pointer to object we are embedding
  `systemc_ctor
-   fx3_dev = new FX3Device(); // Construct contained object
-   fx3_dev->cbuf = cbuf;
-   fx3_dev->wbuf = wbuf;
-   fx3_dev->rbuf = rbuf;
-   fx3_dev->wptr = &wptr;
-   fx3_dev->rptr = &rptr;
-   fx3_dev->cmd_ptr = &cmd_ptr;
-   fx3_dev->wend = &wend;
-   fx3_dev->rdone= &rdone;
-   fx3_dev->hics_b= &hics_b;
-   fx3_dev->full_b= &full_b;
-   fx3_dev->empty_b= &empty_b;
+   i2c_dev = new I2CDevice(); // Construct contained object
+   i2c_dev->term_addr  = &term_addr ;
+   i2c_dev->reg_addr   = &reg_addr  ;
+   i2c_dev->i2c_status = &i2c_status;
+   i2c_dev->reg_datai  = &reg_datai ;
+   i2c_dev->reg_datao  = &reg_datao ;
+   i2c_dev->i2c_re     = &i2c_re    ;
+   i2c_dev->i2c_we     = &i2c_we    ;
+   i2c_dev->write_mode = &write_mode;
+   i2c_dev->i2c_busy   = &i2c_busy  ;
  `systemc_dtor
-   delete fx3_dev;    // Destruct contained object
+   delete i2c_dev;    // Destruct contained object
  `verilog
 `endif
    

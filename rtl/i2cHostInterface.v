@@ -7,7 +7,7 @@
 // of terminal addresses to match.
 
 
-module i2c_slave
+module i2cHostInterface
   #(parameter NUM_ADDR_BYTES=1,
     parameter NUM_DATA_BYTES=2,
     parameter REG_ADDR_WIDTH=8*NUM_ADDR_BYTES,
