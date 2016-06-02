@@ -256,8 +256,10 @@ module i2cHostInterface
                      state <= STATE_WAIT; // NACK
                      done <= 1;
 		  end else begin
-		     di_read <= 1;
-		     di_read_req <= 1;
+		     if(di_read_mode) begin
+			di_read <= 1;
+			di_read_req <= 1;
+		     end
                      sda_reg <= set_sda_reg(0);
                      oeb_reg <= set_oeb_reg(0, 0);
                      state <= STATE_ACK2;
