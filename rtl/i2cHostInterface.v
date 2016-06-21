@@ -247,11 +247,11 @@ module i2cHostInterface
                      done <= 1;
 		  end else begin
 		     if(di_write_mode) begin
-			oeb_reg <= set_oeb_reg(0, 0); // drive ack
-			sda_reg <= set_sda_reg(0);
 			if(!di_write_rdy) begin
 			   scl_oeb <= 0; // clock stretch until write has completed
 			end else begin
+			   oeb_reg <= set_oeb_reg(0, 0); // drive ack
+			   sda_reg <= set_sda_reg(0);
 			   scl_oeb <= 1;
 			   state <= STATE_ACK2;
 			end
