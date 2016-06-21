@@ -46,12 +46,11 @@ module i2cHostInterface
              STATE_ACK2=3,
              STATE_WRITE=4,
              STATE_CHECK_ACK=5,
-             STATE_SEND=6,
-             STATE_WRITE_WAIT=7;
+             STATE_SEND=6;
    
    reg we, done, busy;
    reg [REG_ADDR_WIDTH-1:0] reg_addr;
-   reg [2:0] state;
+   reg [3:0] state;
    reg       scl_s, sda_s, scl_ss, sda_ss, sda_reg, oeb_reg;
    reg [7:0]  sr;
    reg [1:0]  reg_byte_count;
@@ -164,18 +163,7 @@ module i2cHostInterface
  	    di_read_req <= 0;
 	    di_read <= 0;
          end else begin
-	    if(state == STATE_WRITE_WAIT) begin
-	       if(di_write_rdy) begin
-                  we <= 1;
-	       	  /* verilator lint_off WIDTH */
-		  reg_byte_count <= reg_byte_count + 1 - NUM_DATA_BYTES;
-		  /* verilator lint_on WIDTH */
-		  state <= STATE_WRITE;
-		  scl_oeb <= 1;
-	       end else if(scl_s == 0) begin
-		  scl_oeb <= 0; // if the clock goes low and we are still not ready, then hold the clock low to clock extend.
-	       end
-            end if(state == STATE_WAIT) begin
+            if(state == STATE_WAIT) begin
 	       scl_oeb <= 1;
                done <= 0;
                we <= 0;
@@ -223,7 +211,11 @@ module i2cHostInterface
 			/* verilator lint_off WIDTH */
                         if(reg_byte_count == NUM_DATA_BYTES-1) begin // Least significant byte
 			/* verilator lint_on WIDTH */
-                           state <= STATE_WRITE_WAIT;
+                           state <= STATE_WRITE;
+			   we <= 1;
+	       		   /* verilator lint_off WIDTH */
+			   reg_byte_count <= reg_byte_count + 1 - NUM_DATA_BYTES;
+			   /* verilator lint_on WIDTH */
                         end else begin              // Most significant byte
                            state <= STATE_ACK;
 			   reg_byte_count <= reg_byte_count + 1;
@@ -234,37 +226,52 @@ module i2cHostInterface
             end else if(state == STATE_WRITE) begin
                // Stay here one clock cycle before moving to ACK to
                // give 'we' a single clock cycle high.
+               we <= 0;
 	       if(|di_transfer_status) begin
 		  state <= STATE_WAIT; // NACK
 	       end else begin
 		  state <= STATE_ACK;
-	       end
+	       end		     
 	       reg_addr  <= reg_addr + 1; // advance addr for the case of seq writes
-               we    <= 0;
-               sda_reg <= set_sda_reg(1);
-               oeb_reg <= set_oeb_reg(1, 1);
+	       sda_reg <= set_sda_reg(1);
+	       oeb_reg <= set_oeb_reg(1, 1);
+	       
             end else if(state == STATE_ACK) begin
 	       di_read_req <= 0;
                we <= 0;
                // when scl falls, drive sda low to ack the received byte
                if(!scl_ss) begin
-		  if(|di_transfer_status || !di_read_rdy) begin
-		     // if there is an error or if the terminal is
-		     // not ready to read. TO DO: implement
-		     // clock stretching in the event di_read_rdy is not
-		     // ready.
+		  if(|di_transfer_status) begin
+		     // if there is an transfer error, send NACK
                      state <= STATE_WAIT; // NACK
                      done <= 1;
 		  end else begin
-		     if(di_read_mode) begin
-			di_read <= 1;
-			di_read_req <= 1;
-		     end
-                     sda_reg <= set_sda_reg(0);
-                     oeb_reg <= set_oeb_reg(0, 0);
-                     state <= STATE_ACK2;
-                     if(rw_bit && (reg_byte_count == 0)) begin
-			sr_send <= di_reg_datao;
+		     if(di_write_mode) begin
+			if(!di_write_rdy) begin
+			   scl_oeb <= 0; // clock stretch until write has completed
+			end else begin
+			   oeb_reg <= set_oeb_reg(0, 0); // drive ack
+			   sda_reg <= set_sda_reg(0);
+			   scl_oeb <= 1;
+			   state <= STATE_ACK2;
+			end
+		     end else if(di_read_mode) begin
+			oeb_reg <= set_oeb_reg(0, 0); // drive ack
+			sda_reg <= set_sda_reg(0);
+			if(di_read_rdy) begin
+			   di_read <= 1;
+			   state <= STATE_ACK2;
+			   if(reg_byte_count == 0) begin
+			      sr_send <= di_reg_datao; // preload data to send
+			   end
+			   scl_oeb <= 1;
+			end else begin
+			   scl_oeb <= 0; // clock stretch until read is ready
+			end
+		     end else begin
+			oeb_reg <= set_oeb_reg(0, 0); // drive ack
+			sda_reg <= set_sda_reg(0);
+			state <= STATE_ACK2;
 		     end
 		  end
                end             

@@ -65,6 +65,7 @@ protected:
       }
       *reg_addr  = *reg_addr + 1;
       *((uint32*) (data + rx_count)) = *reg_datao;
+      //printf("0x%x %d\n", *reg_datao, length);
       if(*i2c_status) {
 	throw Exception(USB_COMM, "Unexpected ack code return: 0x%x", *i2c_status);
       }
