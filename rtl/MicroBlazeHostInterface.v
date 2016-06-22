@@ -77,6 +77,7 @@ module MicroBlazeHostInterface
 	 IO_Read_Data  <= 0;
 	 di_read_req   <= 0;
 	 di_read       <= 0;
+	 di_write      <= 0;
 	 di_wrote      <= 0;
 	 di_write_done <= 0;
      mcs_transfer_status <= 0;
