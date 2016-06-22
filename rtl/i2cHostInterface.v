@@ -50,7 +50,7 @@ module i2cHostInterface
    
    reg we, done, busy;
    reg [REG_ADDR_WIDTH-1:0] reg_addr;
-   reg [3:0] state;
+   reg [2:0] state;
    reg       scl_s, sda_s, scl_ss, sda_ss, sda_reg, oeb_reg;
    reg [7:0]  sr;
    reg [1:0]  reg_byte_count;
