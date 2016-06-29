@@ -326,7 +326,7 @@ module fx3
 /***********************************************************/
 
  `systemc_header
-#include "../../../../lib/HostInterface/models/fx3_verilator.cpp"
+#include <fx3_verilator.cpp>
  `systemc_interface
    FX3Device *fx3_dev;    // Pointer to object we are embedding
  `systemc_ctor
