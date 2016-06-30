@@ -284,7 +284,7 @@ module i2c_host
 /***********************************************************/
 
  `systemc_header
-#include "../../../../lib/HostInterface/models/i2c_verilator.cpp"
+#include <i2c_verilator.cpp>
  `systemc_interface
    I2CDevice *i2c_dev;    // Pointer to object we are embedding
  `systemc_ctor
