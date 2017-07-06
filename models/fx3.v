@@ -296,14 +296,14 @@ module fx3
       begin
          _sendcmd ( term_addr, reg_addr, 2, length );
          txcount = 0;
-         
          while (txcount < length) begin
             while ( empty_b ) begin
                @(posedge clk);
             end
-            for (i=0;i<256 && txcount < length; i=i+1) begin
+            for (i=0;i<(wr_buf_size/4) && txcount < length; i=i+1) begin
                wbuf[i] = { rdwr_data_buf[txcount+3], rdwr_data_buf[txcount+2], rdwr_data_buf[txcount+1] , rdwr_data_buf[txcount] };
                txcount = txcount + 4;
+	       //$display(" wbuf[%d] = 0x%x txcount=%d length=%d", i, wbuf[i], txcount, length);
             end
             wptr = 0;
             wend = i;

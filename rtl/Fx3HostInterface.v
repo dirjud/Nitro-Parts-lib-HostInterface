@@ -165,7 +165,7 @@ module Fx3HostInterface
    output reg 	     fx3_pktend_b,
    output reg [1:0]  fx3_fifo_addr,
    input [31:0]      fx3_fd_in,
-   output [31:0]     fx3_fd_out,
+   output reg [31:0] fx3_fd_out,
    output 	     fx3_fd_oe,
 //   inout [31:0]      fx3_fd,
    
@@ -186,6 +186,7 @@ module Fx3HostInterface
    input [15:0]      di_transfer_status
    );
 
+   reg 	      slrd_b_internal;
    // synthesis attribute IOB of fd_out        is "TRUE";
    // synthesis attribute IOB of fx3_hics_b    is "TRUE";
    // synthesis attribute IOB of fx3_fifo_addr is "TRUE";
@@ -195,6 +196,13 @@ module Fx3HostInterface
    // synthesis attribute IOB of fx3_pktend_b  is "TRUE";
    // synthesis attribute IOB of fx3_dma_rdy_b is "TRUE";
    // synthesis attribute IOB of fd_in         is "TRUE";
+
+
+   // synthesis attribute KEEP of fd_out          is "TRUE";
+   // synthesis attribute KEEP of fx3_fd_out      is "TRUE";
+   // synthesis attribute KEEP of slrd_b_internal is "TRUE";
+   // synthesis attribute KEEP of fx3_slwr_b      is "TRUE";
+   // synthesis attribute KEEP of fx3_sloe_b      is "TRUE";
    
    wire [31:0] transfer_len;
    reg  cmd_start;
@@ -205,7 +213,7 @@ module Fx3HostInterface
 
 //   assign fx3_fd = (fx3_sloe_b) ? fd_out : 32'hZZZZZZZZ;
    assign fx3_fd_oe = fx3_sloe_b;
-   assign fx3_fd_out = fd_out;
+//   assign fx3_fd_out = fd_out;
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
          dma_rdy_b <= 0;
@@ -246,10 +254,9 @@ module Fx3HostInterface
 
    reg [15:0] checksum, status;
    reg 	      slrd_b_s, slrd_b_ss, slrd_b_sss;
-   
+
    wire       write_in_process =  !fx3_slrd_b || !slrd_b_s || !slrd_b_ss || !slrd_b_sss || di_write;
    wire       latch_fd_in = !slrd_b_sss;
-   reg 	      wait_for_next_buffer;
    wire [31:0] fifo_rdata;
    wire        fifo_full, fifo_empty;
    reg 	       pktend;
@@ -270,12 +277,14 @@ module Fx3HostInterface
          
          fx3_sloe_b       <= 0; // FX3 drives the bus when reset
          fx3_slrd_b       <= 1; // No read enable yet
+         slrd_b_internal  <= 1; // No read enable yet
          fx3_slwr_b       <= 1; // No write enable
          fx3_pktend_b     <= 1;
          pktend           <= 0;
          fx3_fifo_addr    <= 2'b11;
 
          fd_out           <= 0;
+         fx3_fd_out       <= 0;
          checksum         <= 0;
          status           <= 0;
 	 cmd_buf[0] <= 0;
@@ -285,7 +294,6 @@ module Fx3HostInterface
 	 slrd_b_s   <= 1;
 	 slrd_b_ss  <= 1;
 	 slrd_b_sss <= 1;
-	 wait_for_next_buffer <= 0;
 	 first_write <= 1;
 
       end else begin
@@ -293,7 +301,7 @@ module Fx3HostInterface
          di_write_mode    <= ((state == PROCESS_CMD) || (state == SEND_ACK)) && (cmd == WRITE_CMD);
          status           <= di_transfer_status;
 
-	 slrd_b_s  <= fx3_slrd_b;
+	 slrd_b_s  <= slrd_b_internal;
 	 slrd_b_ss <= slrd_b_s;
 	 slrd_b_sss <= slrd_b_ss;
 	 
@@ -309,6 +317,7 @@ module Fx3HostInterface
             bcount        <= 0;
             fx3_sloe_b    <= 0; 
             fx3_slrd_b    <= 1; // No read enable yet
+            slrd_b_internal<= 1; // No read enable yet
             fx3_slwr_b    <= 1; // No write enable
             fx3_pktend_b  <= 1; 
             pktend        <= 0; 
@@ -324,6 +333,7 @@ module Fx3HostInterface
 	    di_reg_addr   <= 0;
 
             fd_out        <= 0;
+            fx3_fd_out    <= 0;
 	    cmd_buf[0]    <= 0;
 	    cmd_buf[1]    <= 0;
 	    cmd_buf[2]    <= 0;
@@ -340,6 +350,7 @@ module Fx3HostInterface
 		 // pull us out of the idle state.
                  fx3_sloe_b    <= 0; // FX3 drives the bus when idle
                  fx3_slrd_b    <= 1; // No read enable yet
+                 slrd_b_internal<= 1; // No read enable yet
                  fx3_slwr_b    <= 1; // No write enable
                  fx3_pktend_b  <= 1; // No write enable
                  pktend        <= 0; // No write enable
@@ -366,9 +377,11 @@ module Fx3HostInterface
                  end else begin
                     if(dma_rdy && (bcount < 16)) begin
                        fx3_slrd_b <= 0;         // assert read enable
+                       slrd_b_internal <= 0;         // assert read enable
 		       bcount <= next_bcount;
                     end else begin
 		       fx3_slrd_b <= 1;
+		       slrd_b_internal <= 1;
 		    end
 		    
                     if(latch_fd_in) begin
@@ -384,13 +397,21 @@ module Fx3HostInterface
                     fx3_slwr_b <= 0; // send the ack packet back
                     tcount     <= tcount + 1;
                     case(tcount)
-		      0: fd_out <= { checksum, 16'hA50F };
+		      0: begin
+			 fd_out <= { checksum, 16'hA50F };
+			 fx3_fd_out <= { checksum, 16'hA50F };
+		      end
 		      1: begin
 			 fd_out <= { 16'h0001, status   };
+			 fx3_fd_out <= { 16'h0001, status   };
 			 state        <= IDLE;
 			 fx3_pktend_b <= 0; // commit the short packet.
 		      end
-		      default:fd_out <= 0;
+		      default:begin
+			 fd_out <= 0;
+			 fx3_fd_out <= 0;
+		      end
+			 
                     endcase
 		 end else begin // if (dma_rdy || (|tcount[1:0]))
                     fx3_slwr_b <= 1;
@@ -408,6 +429,7 @@ module Fx3HostInterface
 		       
                        if(di_read) begin
                           fd_out      <= di_reg_datao;
+                          fx3_fd_out  <= di_reg_datao;
                           checksum    <= checksum + di_reg_datao[15:0] + di_reg_datao[31:16];
                        end
                        
@@ -449,6 +471,7 @@ module Fx3HostInterface
 
 		      if(tcount >= di_len) begin
 			 fx3_slrd_b <= 1;
+			 slrd_b_internal <= 1;
 			 if(fifo_empty && !dma_rdy && !write_in_process && di_write_rdy) begin
 			    fx3_fifo_addr <= READ_EP;
 			    state <= SEND_ACK;
@@ -457,10 +480,12 @@ module Fx3HostInterface
 			 end
 		      end else if(dma_rdy && (bcount < buffer_length) && !fifo_full) begin
 			 fx3_slrd_b <= 0;
+			 slrd_b_internal <= 0;
 			 bcount <= next_bcount;
 			 tcount <= next_tcount;
                       end else begin
 			 fx3_slrd_b <= 1;
+			 slrd_b_internal <= 1;
 			 if(!dma_rdy) begin
 			    bcount <= 0;
 			 end
