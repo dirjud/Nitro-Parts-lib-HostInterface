@@ -212,7 +212,8 @@ module Fx3HostInterface
    reg [31:0] cmd_buf[0:3];
 
 //   assign fx3_fd = (fx3_sloe_b) ? fd_out : 32'hZZZZZZZZ;
-   assign fx3_fd_oe = fx3_sloe_b;
+   reg 	      sloe_b_internal;
+   assign fx3_fd_oe = sloe_b_internal;
 //   assign fx3_fd_out = fd_out;
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
@@ -276,6 +277,7 @@ module Fx3HostInterface
 	 di_reg_addr      <= 0;
          
          fx3_sloe_b       <= 0; // FX3 drives the bus when reset
+         sloe_b_internal  <= 0; // FX3 drives the bus when reset
          fx3_slrd_b       <= 1; // No read enable yet
          slrd_b_internal  <= 1; // No read enable yet
          fx3_slwr_b       <= 1; // No write enable
@@ -316,6 +318,7 @@ module Fx3HostInterface
             tcount        <= 0;
             bcount        <= 0;
             fx3_sloe_b    <= 0; 
+            sloe_b_internal <= 0; 
             fx3_slrd_b    <= 1; // No read enable yet
             slrd_b_internal<= 1; // No read enable yet
             fx3_slwr_b    <= 1; // No write enable
@@ -349,6 +352,7 @@ module Fx3HostInterface
 		 // causes the if statement above to take priority and
 		 // pull us out of the idle state.
                  fx3_sloe_b    <= 0; // FX3 drives the bus when idle
+                 sloe_b_internal <= 0; // FX3 drives the bus when idle
                  fx3_slrd_b    <= 1; // No read enable yet
                  slrd_b_internal<= 1; // No read enable yet
                  fx3_slwr_b    <= 1; // No write enable
@@ -393,6 +397,7 @@ module Fx3HostInterface
             
               SEND_ACK: begin // tcount should be zero upon entry
                  fx3_sloe_b    <= 1; // we drive bus to send ack
+                 sloe_b_internal <= 1; // we drive bus to send ack
                  if (dma_rdy || (|tcount[1:0])) begin
                     fx3_slwr_b <= 0; // send the ack packet back
                     tcount     <= tcount + 1;
@@ -423,6 +428,7 @@ module Fx3HostInterface
                  case(cmd)
                     READ_CMD: begin
                        fx3_sloe_b     <= 1;     // We drive the bus
+                       sloe_b_internal <= 1;     // We drive the bus
                        fx3_slwr_b     <= !di_read;                       
 		       fx3_pktend_b   <= !pktend;
 		       
@@ -468,6 +474,7 @@ module Fx3HostInterface
                    
                    WRITE_CMD: begin
                       fx3_sloe_b    <= 0; //  FX3 drives the bus
+                      sloe_b_internal    <= 0; //  FX3 drives the bus
 
 		      if(tcount >= di_len) begin
 			 fx3_slrd_b <= 1;
