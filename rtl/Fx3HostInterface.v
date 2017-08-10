@@ -178,6 +178,7 @@ module Fx3HostInterface
    output reg 	     di_read,
    input wire 	     di_read_rdy,
    input [31:0]      di_reg_datao,
+//output [255:0] dbg,   
 
    output reg 	     di_write,
    input wire 	     di_write_rdy,
@@ -210,6 +211,8 @@ module Fx3HostInterface
    wire dma_rdy = !dma_rdy_b;
    reg [31:0] fd_in, fd_out;
    reg [31:0] cmd_buf[0:3];
+   
+//   assign dbg = { cmd_buf[3], cmd_buf[2], cmd_buf[1], cmd_buf[0] };
 
 //   assign fx3_fd = (fx3_sloe_b) ? fd_out : 32'hZZZZZZZZ;
    reg 	      sloe_b_internal;
