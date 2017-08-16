@@ -38,7 +38,7 @@ module byter
    wire [2:0] 			  next_byte_pos = byte_pos + 1;
    reg 				  state;
    reg				  di0_read_rdy0;
-   parameter STATE_IDLE=0, STATE_SHIFTING=1;
+   localparam STATE_IDLE=0, STATE_SHIFTING=1;
    reg 				  di0_write_rdy0;
    assign di0_write_rdy = di0_write_rdy0 && di1_write_rdy;
    assign di0_read_rdy = di0_read_rdy0 && !di0_read;
