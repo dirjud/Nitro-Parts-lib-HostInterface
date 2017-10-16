@@ -189,6 +189,7 @@ module Fx3HostInterface
 
    reg 	      slrd_b_internal;
    // synthesis attribute IOB of fd_out        is "TRUE";
+   // synthesis attribute IOB of fx3_fd_out    is "TRUE";
    // synthesis attribute IOB of fx3_hics_b    is "TRUE";
    // synthesis attribute IOB of fx3_fifo_addr is "TRUE";
    // synthesis attribute IOB of fx3_slrd_b    is "TRUE";
@@ -265,6 +266,7 @@ module Fx3HostInterface
    wire        fifo_full, fifo_empty;
    reg 	       pktend;
    reg 	       first_write;
+   reg         di_read_s;
    
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
@@ -300,8 +302,10 @@ module Fx3HostInterface
 	 slrd_b_ss  <= 1;
 	 slrd_b_sss <= 1;
 	 first_write <= 1;
+         di_read_s <= 0;
 
       end else begin
+         di_read_s        <= di_read;
          di_read_mode     <= ((state == PROCESS_CMD) || (state == SEND_ACK)) && (cmd == READ_CMD);
          di_write_mode    <= ((state == PROCESS_CMD) || (state == SEND_ACK)) && (cmd == WRITE_CMD);
          status           <= di_transfer_status;
@@ -347,7 +351,7 @@ module Fx3HostInterface
 
             first_write   <= 1;
          end else begin
-
+            
             case(state)
               IDLE: begin
 		 // There is no way out of the idle state from within
@@ -439,9 +443,11 @@ module Fx3HostInterface
                        if(di_read) begin
                           fd_out      <= di_reg_datao;
                           fx3_fd_out  <= di_reg_datao;
-                          checksum    <= checksum + di_reg_datao[15:0] + di_reg_datao[31:16];
+                          //checksum    <= checksum + di_reg_datao[15:0] + di_reg_datao[31:16];
                        end
-                       
+                       if(di_read_s) begin
+                          checksum <= checksum + fd_out[15:0] + fd_out[31:16];
+                       end
                        if(!di_read_mode) begin // the first cycle of read_mode
                           di_read_req <= 1;
                           di_read     <= 0;
