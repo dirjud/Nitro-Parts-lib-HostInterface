@@ -147,7 +147,8 @@ module fx3
     wire [15:0] rd_buf_size = 1024*`FX3_READ_BUFFERS*`FX3_BUF_MULTIPLIER; 
     wire [15:0] wr_buf_size = 1024*`FX3_WRITE_BUFFERS*`FX3_BUF_MULTIPLIER; 
     // final destination buffer for reads and writes
-    reg [7:0] rdwr_data_buf[0:1024*`FX3_READ_BUFFERS*`FX3_BUF_MULTIPLIER-1];
+   //reg [7:0]    rdwr_data_buf[0:1024*`FX3_READ_BUFFERS*`FX3_BUF_MULTIPLIER-1];
+   reg [7:0]    rdwr_data_buf[0:2**24-1];//1024*`FX3_READ_BUFFERS*`FX3_BUF_MULTIPLIER-1];
 
    /**
     * each io call sends a command to the FPGA
