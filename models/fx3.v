@@ -110,7 +110,7 @@ module fx3
          cmd_datao <= cbuf[cmd_ptr[1:0]];
       end
 
-      datao1 <= wfifo_active    ? datao : 
+      datao1 <= #1 (wfifo_active) ? datao : 
 	        cmd_fifo_active ? cmd_datao : 0;
       
       full_b <= !((rptr > `FX3_READ_BUFFERS*`FX3_BUF_MULTIPLIER*256-1 ) || rdone);
@@ -247,7 +247,7 @@ module fx3
          rdwr_data_buf[0] = 8'hFF & (value >> wcount);
          rdwr_data_buf[1] = 8'hFF & (value >> (wcount+8));
          rdwr_data_buf[2] = 8'hFF & (value >> (wcount+16));
-         rdwr_data_buf[3] = 8'hFF & (value >> (wcount+23));
+         rdwr_data_buf[3] = 8'hFF & (value >> (wcount+24));
          write(term_addr,reg_addr+(wcount/32),4);
       end
    endtask
