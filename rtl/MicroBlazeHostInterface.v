@@ -49,6 +49,8 @@ module MicroBlazeHostInterface
    input wire 	     di_read_rdy,
    input [DI_DATA_WIDTH-1:0]      di_reg_datao,
 
+   input [31:0] di_timeout_count,
+
    output reg 	     di_write,
    input wire 	     di_write_rdy,
    output reg 	     di_write_mode,
@@ -68,6 +70,9 @@ module MicroBlazeHostInterface
    assign di_reg_datai = IO_Write_Data;
    // verilator lint_on WIDTH
    reg 		     di_wrote, di_write_done;
+   reg [31:0]        timeout_cnt;
+   wire [31:0]       next_timeout_cnt = timeout_cnt + 1;
+   wire              timeout = next_timeout_cnt >= di_timeout_count;
    
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
@@ -80,9 +85,21 @@ module MicroBlazeHostInterface
 	 di_write      <= 0;
 	 di_wrote      <= 0;
 	 di_write_done <= 0;
-     mcs_transfer_status <= 0;
-      end else begin
-	 if(di_read || di_write_done) begin
+         timeout_cnt   <= 0;
+         mcs_transfer_status <= 0;
+      end else begin // if (!resetb)
+         if(IO_Ready == 0 && (di_write_mode || di_read_mode)) begin
+            if(!timeout) begin
+               timeout_cnt <= next_timeout_cnt;
+            end
+         end else begin
+            timeout_cnt <= 0;
+         end
+
+         if(timeout) begin
+            mcs_transfer_status <= 16'hFFFF; // timeout 
+            IO_Ready <= 1;
+         end else if(di_read || di_write_done) begin
 	    IO_Ready <= 1;
 	    mcs_transfer_status   <= di_transfer_status;
 	 end else begin
